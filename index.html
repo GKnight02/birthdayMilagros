@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Feliz Cumpleaños</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <div id="game">
+    <canvas id="screen" width="320" height="180"></canvas>
+
+    <!-- Pantalla de inicio -->
+    <div id="title-screen" class="overlay">
+      <h1 class="title">Una pequeña<br />historia</h1>
+      <button id="start-btn" class="pixel-btn">START</button>
+      <p class="hint">toca o presiona ENTER</p>
+    </div>
+
+    <!-- Caja de diálogo -->
+    <div id="dialog" class="dialog hidden">
+      <p id="dialog-text"></p>
+      <span id="dialog-next" class="dialog-next">▼</span>
+    </div>
+
+    <!-- Mensaje final -->
+    <div id="finale" class="overlay hidden">
+      <h2 class="finale-title">¡Feliz<br />Cumpleaños!</h2>
+      <p id="finale-name" class="finale-name"></p>
+      <button id="replay-btn" class="pixel-btn small">OTRA VEZ</button>
+    </div>
+  </div>
+
+  <script src="js/sprites.js"></script>
+  <script src="js/audio.js"></script>
+  <script src="js/main.js"></script>
+</body>
+</html>
