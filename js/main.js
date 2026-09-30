@@ -894,6 +894,7 @@ async function changeScene(setup) {
 
 // La historia está dividida en capítulos para poder empezar desde cualquiera
 async function chapterIntro() {
+  Sound.playMusic("morning");
   await wait(300);
   await openCurtain();
   await wait(300);
@@ -909,6 +910,7 @@ async function chapterIntro() {
 async function chapterOffice() {
   await changeScene(() => {
     scene = "office";
+    Sound.playMusic("office");
     door.open = 0;
     girl.behindDoor = true;
     girl.facing = 1;
@@ -943,6 +945,7 @@ async function chapterOffice() {
 async function chapterFriends() {
   await changeScene(() => {
     scene = "hallway";
+    Sound.playMusic("friends");
     girl.pose = "stand";
     girl.sweat = null;
     girl.bodyOffset = 0;
@@ -983,6 +986,7 @@ async function chapterFriends() {
 async function chapterCake() {
   await changeScene(() => {
     scene = "outdoor";
+    Sound.playMusic("search");
     girl.pose = "stand";
     girl.mood = null;
     friends = [];
@@ -997,6 +1001,7 @@ async function chapterCake() {
   await walkTo(W / 2 - 40, true);
   girl.facing = 1;
 
+  Sound.stopMusic(0.8); // silencio de suspenso antes del pastel
   await say("Hasta que de pronto...");
   await jump();
   await dropCake(W / 2 + 10);
@@ -1019,15 +1024,21 @@ async function story(from = 0) {
   finale();
 }
 
+let partyTimer = null;
 function finale() {
   state = "finale";
   $("finale-name").textContent = `${CONFIG.name}`;
   finaleEl.classList.remove("hidden");
-  Sound.birthdaySong();
+  Sound.stopMusic(0.3);
+  const songLength = Sound.birthdaySong();
+  // Al terminar "Cumpleaños feliz" sigue la fiesta
+  clearTimeout(partyTimer);
+  partyTimer = setTimeout(() => state === "finale" && Sound.playMusic("party"), songLength * 1000 + 600);
   burstHearts(girl.x + GIRL_HALF, girl.y, 12);
 }
 
 function resetScene() {
+  clearTimeout(partyTimer);
   cake = null;
   particles = [];
   scene = "outdoor";
