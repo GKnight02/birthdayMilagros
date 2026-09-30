@@ -30,7 +30,8 @@ const PALETTE = {
   c: "#7ec8e3", // vela
   G: "#c9c9d9", // plato
   H: "#ff4d6d", // corazón
-  g: "#6b6b80", // armazón de lentes
+  g: "#2c2c3c", // armazón de lentes
+  l: "#d8eefa", // cristal de los lentes
 };
 
 // --- La chica (18 x 20), estilo chibi ---
@@ -306,11 +307,11 @@ const sideFace = (rows, face, from) =>
 
 const TALK_FACE = ["KSSSMMX."];                                   // fila 8: boca abierta
 const LAUGH_FACE = ["SSESSESX", "SESEESEX", "SSCSSMWX", "KSSSMMX."];  // filas 5-8: ojos ^ y carcajada
-const ANGRY_FACE = ["SXXSSXSX", "SSESSESX", "SSESSESX", "SCCSSSSX", "KSSSMMX."]; // filas 4-8
+const ANGRY_FACE = ["SXXSSXSX", "SSESSESX", "SSESSESX", "SCCSSXXX", "KSSSWWX."]; // filas 4-8: cejas y dientes apretados
 // Lentes de perfil (filas 4-8): lente cercano enmarcado, puente y patita hacia la oreja
-const GLASSES_FACE = ["SgggSSSX", "ggEggESX", "SgEgSESX", "SgggSCSX", "KSSSSMX."];
-const GLASSES_TALK = ["SgggSSSX", "ggEggESX", "SgEgSESX", "SgggSCSX", "KSSSMMX."];
-const GLASSES_LAUGH = ["SgggSSSX", "ggSggESX", "SgEgESEX", "SgggSMWX", "KSSSMMX."];
+const GLASSES_FACE = ["SggggSSX", "gglWgESX", "SgEWgESX", "SggggCSX", "KSSSSMX."];
+const GLASSES_TALK = ["SggggSSX", "gglWgESX", "SgEWgESX", "SggggCSX", "KSSSMMX."];
+const GLASSES_LAUGH = ["SggggSSX", "gglWgSEX", "SgElgESX", "SggggMWX", "KSSSMMX."];
 
 // Milagros de lado, parada
 const MILI_SIDE_TOP = [
@@ -324,6 +325,21 @@ const MILI_SIDE_LAUGH_TOP = [
   "...XKKKKKXTTTNTX..",
   "..XKKKKKKXLLtLLX..",
   "..XKKKKKXXTTtSTX..",   // mano en la panza de tanta risa
+  "...XKKKX.XLLLLLX..",
+  "....XXX..XbbbbbX..",
+];
+// Enojada: puño cerrado que se agita (dos posiciones)
+const MILI_SIDE_ANGRY_TOP = [
+  "...XKKKKKXTTTNTXSX",
+  "..XKKKKKKXLLtLLtX.",
+  "..XKKKKKXXTTTttX..",
+  "...XKKKX.XLLLLLX..",
+  "....XXX..XbbbbbX..",
+];
+const MILI_SIDE_ANGRY_TOP2 = [
+  "...XKKKKKXTTTNTX..",
+  "..XKKKKKKXLLtLLXSX",
+  "..XKKKKKXXTTTtttX.",
   "...XKKKX.XLLLLLX..",
   "....XXX..XbbbbbX..",
 ];
@@ -467,7 +483,8 @@ const SPRITES = {
     chat: buildSprite(MILI_SIDE),
     talk: buildSprite(sideFace(MILI_SIDE, TALK_FACE, 8)),
     laugh: buildSprite(sideFace([...SIDE_HEAD, ...MILI_SIDE_LAUGH_TOP, ...STAND_LEGS], LAUGH_FACE, 5)),
-    angry: buildSprite(sideFace(MILI_SIDE, ANGRY_FACE, 4)),
+    angry: buildSprite(sideFace([...SIDE_HEAD, ...MILI_SIDE_ANGRY_TOP, ...STAND_LEGS], ANGRY_FACE, 4)),
+    angry2: buildSprite(sideFace([...SIDE_HEAD, ...MILI_SIDE_ANGRY_TOP2, ...STAND_LEGS], ANGRY_FACE, 4)),
   },
   emojiLaugh: buildSprite(EMOJI_LAUGH),
   anger: buildSprite(ANGER),

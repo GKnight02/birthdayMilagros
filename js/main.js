@@ -428,6 +428,23 @@ function spawnEmotes(dt) {
   else particles.push({ ...base, type: "text", text: ["JA", "JAJA", "JAJAJA"][(Math.random() * 3) | 0] });
 }
 
+// Enojada: le sale vapor de la cabeza y de vez en cuando un "GRR"
+let steamTimer = 0;
+function spawnSteam(dt) {
+  steamTimer -= dt;
+  if (steamTimer > 0) return;
+  steamTimer = 0.12;
+  const x = girl.x + 8 + Math.random() * 16;
+  particles.push({ type: "steam", x, y: girl.y + 2, vx: (Math.random() - 0.5) * 8, vy: -22, life: 0.7 });
+  if (Math.random() < 0.12)
+    particles.push({ type: "text", text: "GRR", color: "#ff4d6d", x: girl.x + 34, y: girl.y + 4, vx: 6, vy: -14, life: 1 });
+}
+
+// Corazoncitos sobre cada amiga: todas son especiales para ella
+function heartsOverFriends() {
+  friends.forEach((f) => burstHearts(f.x + GIRL_HALF, f.feet - GIRL_H - 2, 3));
+}
+
 // Brillitos alrededor de la amiga especial
 function spawnSparkles(f) {
   particles.push({
@@ -602,6 +619,7 @@ function girlFrame() {
   if (girl.reach) return door.carry && Math.floor(time * 6) % 2 ? SPRITES.reachB : SPRITES.reachA;
   if (girl.mood && girl.onGround && girl.targetX === null) {
     if (girl.mood === "chat" && talking(0.9)) return SPRITES.side.talk;
+    if (girl.mood === "angry" && Math.floor(time * 8) % 2) return SPRITES.side.angry2;
     return SPRITES.side[girl.mood];
   }
   if (girl.jumpDelay > 0 || girl.landTimer > 0) return SPRITES.crouch;
@@ -651,8 +669,8 @@ function drawGirl() {
   drawSprite(girlFrame(), girl.x + shake, girl.y + bounce, SCALE, girl.facing === -1);
   if (girl.mood === "angry") {
     // marca de enojo que late junto a su cabeza
-    const beat = Math.floor(time * 4) % 2;
-    drawSprite(SPRITES.anger, girl.x + 14 + beat, girl.y - 16 - beat, SCALE);
+    const beat = Math.floor(time * 5) % 2;
+    drawSprite(SPRITES.anger, girl.x + 12 - beat, girl.y - 18 - beat, SCALE + beat);
   }
 }
 
@@ -783,7 +801,7 @@ function drawParticles() {
       ctx.lineWidth = 2;
       ctx.strokeStyle = "#140c0c";
       ctx.strokeText(p.text, Math.round(p.x), Math.round(p.y));
-      ctx.fillStyle = "#ffe066";
+      ctx.fillStyle = p.color || "#ffe066";
       ctx.fillText(p.text, Math.round(p.x), Math.round(p.y));
       ctx.globalAlpha = 1;
     } else if (p.type === "emoji") {
@@ -796,6 +814,14 @@ function drawParticles() {
       const x = Math.round(p.x), y = Math.round(p.y);
       ctx.fillRect(x, y - 1, 1, 3);
       ctx.fillRect(x - 1, y, 3, 1);
+      ctx.globalAlpha = 1;
+    } else if (p.type === "steam") {
+      ctx.globalAlpha = Math.min(1, p.life * 2) * 0.85;
+      const r = p.life > 0.4 ? 3 : 4;   // se va inflando al subir
+      ctx.fillStyle = "#9a9aa8";
+      ctx.fillRect(Math.round(p.x) - 1, Math.round(p.y) - 1, r + 2, r + 2);
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(Math.round(p.x), Math.round(p.y), r, r);
       ctx.globalAlpha = 1;
     } else if (p.type === "puff") {
       ctx.globalAlpha = Math.min(1, p.life) * 0.8;
@@ -859,15 +885,15 @@ let state = "title"; // title | story | finale
 
 // Cambio de escena: cierra el telón, acomoda todo y lo vuelve a abrir
 async function changeScene(setup) {
-  await closeCurtain();
+  if (curtain.open > 0) await closeCurtain();
   particles = [];
   setup();
   await wait(400);
   await openCurtain();
 }
 
-async function story() {
-  state = "story";
+// La historia está dividida en capítulos para poder empezar desde cualquiera
+async function chapterIntro() {
   await wait(300);
   await openCurtain();
   await wait(300);
@@ -877,8 +903,10 @@ async function story() {
 
   // Sale corriendo por la derecha...
   await walkTo(W + 10, true);
+}
 
-  // ...y aparece en la oficina
+// ...y aparece en la oficina
+async function chapterOffice() {
   await changeScene(() => {
     scene = "office";
     door.open = 0;
@@ -909,8 +937,10 @@ async function story() {
   await say("...aunque a veces el trabajo también llega a estresarla y a cansarla un poquito.");
   await sigh();
   await say("Pero ese día no dejaba de pensar que algo especial iba a pasar...");
+}
 
-  // Con sus amigas en el pasillo
+// Con sus amigas en el pasillo
+async function chapterFriends() {
   await changeScene(() => {
     scene = "hallway";
     girl.pose = "stand";
@@ -923,7 +953,9 @@ async function story() {
     friends = makeFriends();
   });
   await wait(1200);
-  await say(`Por suerte, ${CONFIG.name} no está sola: tiene amigas que siempre la animan y la hacen reír.`);
+  await say(`Por suerte, ${CONFIG.name} no está sola: tiene amigas que la quieren, la animan y la hacen reír.`);
+  heartsOverFriends();
+  await say("Cada una es especial para ella a su manera, y con todas comparte los mejores momentos.");
 
   // Resalta a la amiga especial
   const best = friends.find((f) => f.key === "best");
@@ -933,19 +965,22 @@ async function story() {
   best.hop = 0.5;
   Sound.jump();
   await wait(700);
-  await say("Y entre todas hay una muy especial... un tanto loquita.");
+  await say("Y luego está ella... especial a su propia manera, y un tanto loquita.");
   best.laugh = true;
   girl.mood = "laugh";
-  await say("A veces es la que más la anima y la hace reír...");
+  await say("A veces es la que más la anima y la hace reír hasta que le duele la panza...");
   girl.mood = "angry";
-  await say("...y otras veces es la que la hace enojar.");
+  await say("...y otras veces es la que la saca de quicio.");
   highlightBest = false;
   girl.mood = "laugh";
   friends.forEach((f) => { f.laugh = true; });
-  await say("¡Pero así la quiere muchísimo!");
+  heartsOverFriends();
+  await say("¡Pero así la quiere, igual que a cada una de ellas!");
   await wait(600);
+}
 
-  // De regreso afuera
+// De regreso afuera, donde encuentra el pastel
+async function chapterCake() {
   await changeScene(() => {
     scene = "outdoor";
     girl.pose = "stand";
@@ -969,6 +1004,18 @@ async function story() {
   await jump();
 
   await say(`¡Un pastel! ¡Hoy es el cumpleaños de ${CONFIG.name}!`);
+}
+
+const CHAPTERS = [
+  { name: "Inicio", run: chapterIntro },
+  { name: "Oficina", run: chapterOffice },
+  { name: "Amigas", run: chapterFriends },
+  { name: "Pastel", run: chapterCake },
+];
+
+async function story(from = 0) {
+  state = "story";
+  for (let i = from; i < CHAPTERS.length; i++) await CHAPTERS[i].run();
   finale();
 }
 
@@ -1023,7 +1070,7 @@ $("replay-btn").addEventListener("click", (e) => {
   story();
 });
 
-function advance() { waitingForInput && waitingForInput(); }
+function advance() { Sound.init(); waitingForInput && waitingForInput(); }
 $("game").addEventListener("pointerdown", advance);
 window.addEventListener("keydown", (e) => {
   if (e.key === "Enter" || e.key === " ") {
@@ -1031,6 +1078,38 @@ window.addEventListener("keydown", (e) => {
     if (state === "title") startGame(); else advance();
   }
 });
+
+// =====================================================
+//  PAGINADO DE ESCENAS (TEMPORAL — borra este bloque cuando ya no lo necesites)
+//  Recarga la página empezando en el capítulo elegido (#escena=N).
+// =====================================================
+(() => {
+  const nav = document.createElement("div");
+  nav.style.cssText = "position:absolute;top:1%;right:1%;display:flex;gap:0.6cqw;z-index:10;";
+  const current = Number((location.hash.match(/escena=(\d+)/) || [])[1]);
+  CHAPTERS.forEach((ch, i) => {
+    const b = document.createElement("button");
+    b.textContent = i + 1;
+    b.title = ch.name;
+    b.style.cssText =
+      "font:1.2cqw 'Press Start 2P',monospace;padding:0.6cqw 0.9cqw;cursor:pointer;border:0.3cqw solid #000;" +
+      `color:#fff;background:${current === i + 1 ? "#e84a7f" : "#1a1a2e"};`;
+    b.addEventListener("pointerdown", (e) => e.stopPropagation());
+    b.addEventListener("click", (e) => {
+      e.stopPropagation();
+      location.hash = `escena=${i + 1}`;
+      location.reload();
+    });
+    nav.appendChild(b);
+  });
+  $("game").appendChild(nav);
+
+  // Si la dirección trae #escena=N, se salta el título y empieza ahí
+  if (current >= 1 && current <= CHAPTERS.length) {
+    titleScreen.classList.add("hidden");
+    story(current - 1);
+  }
+})();
 
 // =====================================================
 //  BUCLE PRINCIPAL
@@ -1075,6 +1154,7 @@ function loop(now) {
     for (const f of friends) f.hop = Math.max(0, f.hop - dt);
     const best = friends.find((f) => f.key === "best");
     if (highlightBest && best && Math.random() < dt * 14) spawnSparkles(best);
+    if (girl.mood === "angry") spawnSteam(dt);
   }
 
   // Dibujar
