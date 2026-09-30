@@ -30,6 +30,7 @@ const PALETTE = {
   c: "#7ec8e3", // vela
   G: "#c9c9d9", // plato
   H: "#ff4d6d", // corazón
+  g: "#6b6b80", // armazón de lentes
 };
 
 // --- La chica (18 x 20), estilo chibi ---
@@ -297,16 +298,148 @@ const HEART = [
   "...H...",
 ];
 
+// --- Platicando de lado (escena del pasillo) ---
+// Todas miran a la derecha; las que miran a la izquierda se voltean con flip.
+// Las caras de perfil ocupan las columnas 10-17 de la cabeza.
+const sideFace = (rows, face, from) =>
+  rows.map((row, i) => (i >= from && i < from + face.length ? row.slice(0, 10) + face[i - from] : row));
+
+const TALK_FACE = ["KSSSMMX."];                                   // fila 8: boca abierta
+const LAUGH_FACE = ["SSESSESX", "SESEESEX", "SSCSSMWX", "KSSSMMX."];  // filas 5-8: ojos ^ y carcajada
+const ANGRY_FACE = ["SXXSSXSX", "SSESSESX", "SSESSESX", "SCCSSSSX", "KSSSMMX."]; // filas 4-8
+// Lentes de perfil (filas 4-8): lente cercano enmarcado, puente y patita hacia la oreja
+const GLASSES_FACE = ["SgggSSSX", "ggEggESX", "SgEgSESX", "SgggSCSX", "KSSSSMX."];
+const GLASSES_TALK = ["SgggSSSX", "ggEggESX", "SgEgSESX", "SgggSCSX", "KSSSMMX."];
+const GLASSES_LAUGH = ["SgggSSSX", "ggSggESX", "SgEgESEX", "SgggSMWX", "KSSSMMX."];
+
+// Milagros de lado, parada
+const MILI_SIDE_TOP = [
+  "...XKKKKKXTTTNTX..",
+  "..XKKKKKKXLLtLLX..",
+  "..XKKKKKXXTTtTTX..",
+  "...XKKKX.XLLSLLX..",
+  "....XXX..XbbbbbX..",
+];
+const MILI_SIDE_LAUGH_TOP = [
+  "...XKKKKKXTTTNTX..",
+  "..XKKKKKKXLLtLLX..",
+  "..XKKKKKXXTTtSTX..",   // mano en la panza de tanta risa
+  "...XKKKX.XLLLLLX..",
+  "....XXX..XbbbbbX..",
+];
+const STAND_LEGS = [
+  ".........XjjJJX...",
+  ".........XjjJJX...",
+  ".........XjjJJX...",
+  "........XBBBBBBX..",
+  "........XXXXXXXX..",
+];
+const MILI_SIDE = [...SIDE_HEAD, ...MILI_SIDE_TOP, ...STAND_LEGS];
+
+// Amigas: cabeza + pelo por la espalda + torso + ropa
+const PONY_HEAD = [
+  ".....XXXXXXXXXX...",
+  "....XKKKKKKKKKkKX.",
+  "..XXHKkKKKKKKKKKKX",
+  ".XKKXKKKKKKSKKSSKX",
+  ".XKKXKKKKKSSSSSSSX",
+  ".XKKXKkKKKSSESSESX",
+  ".XKKXKKKKKSSESSESX",
+  "..XKXKKKKKSSCSSSSX",
+  "..XKXKKKKKKSSSSMX.",
+  "..XKXKKKKKXXSSXX..",
+];
+// Pelo por la espalda en las filas 10-13 (columnas 0-8)
+const HAIR_BACK = {
+  bob: ["....XXXXX", ".........", ".........", "........."],
+  shoulder: ["...XKKKKK", "...XKKkKK", "....XXXXX", "........."],
+  pony: ["..XKXXXXX", "..XKX....", "..XKX....", "...X....."],
+};
+// Torso (columnas 9-17): brazo colgando, o mano en la panza al reírse
+const TORSO = ["XTTTTTX..", "XTTtTTX..", "XTTtTTX..", "XTTSTTX.."];
+const TORSO_LAUGH = ["XTTTTTX..", "XTTtTTX..", "XTTtSTX..", "XTTTTTX.."];
+const OUTFIT = {
+  jeans: [".........XbbbbbX..", ...STAND_LEGS],
+  dress: [
+    ".........XTTTTTX..",
+    "........XTTTTTTX..",
+    "........XXXXXXXX..",
+    ".........XssSSX...",
+    "........XBBBBBBX..",
+    "........XXXXXXXX..",
+  ],
+};
+
+const FRIENDS = {
+  // La amiga especial: piel blanca, cabello negro, lentes, polo negro y jeans azules
+  best: {
+    head: "shoulder", outfit: "jeans", glasses: true,
+    colors: { K: "#1c1a22", k: "#3a3848", S: "#f8e2cc", s: "#e3c4a8", C: "#f4b0a0",
+              T: "#2a2a33", t: "#4a4a58", b: "#1c1a22", J: "#4a78c2", j: "#3a5f9e" },
+  },
+  // Melena corta castaña, piel trigueña, blusa coral
+  bob: {
+    head: "bob", outfit: "jeans",
+    colors: { K: "#6b4430", k: "#8a5a40", S: "#d9a27a", s: "#b98560", C: "#e08a74",
+              T: "#ff9a76", t: "#e07a58", J: "#3b4a8a", j: "#2e3b70" },
+  },
+  // Cola de caballo negra, piel clara, blusa turquesa y pantalón beige
+  pony: {
+    head: "pony", outfit: "jeans",
+    colors: { K: "#1c1a22", k: "#3a3848", S: "#f2cfb0", s: "#dcb090", C: "#f2a08f",
+              T: "#5fb8b0", t: "#3f9890", J: "#d9bf8c", j: "#bfa370", b: "#8d5a3b" },
+  },
+  // Pelo castaño a los hombros, piel trigueña, vestido lila
+  dress: {
+    head: "shoulder", outfit: "dress",
+    colors: { K: "#5a3a30", k: "#7a5040", S: "#d09470", s: "#b07a58", C: "#d98070",
+              T: "#b388eb", t: "#8f66c9" },
+  },
+};
+
+function friendRows(f, face, faceFrom, laugh) {
+  let head = f.head === "pony" ? PONY_HEAD : SIDE_HEAD;
+  if (f.glasses) head = head.map((row, i) => (i === 5 ? row.slice(0, 8) + "gg" + row.slice(10) : row));
+  head = sideFace(head, face, faceFrom);
+  const torso = (laugh ? TORSO_LAUGH : TORSO).map((t, i) => HAIR_BACK[f.head][i] + t);
+  return [...head, ...torso, ...OUTFIT[f.outfit]];
+}
+
+// --- Emoticonos ---
+// Carita llorando de risa (9 x 9)
+const EMOJI_LAUGH = [
+  "..XXXXX..",
+  ".XYYYYYX.",
+  "XYYYYYYYX",
+  "XcEYYYEcX",
+  "XcYYYYYcX",
+  "XYXWWWXYX",
+  "XYYXXXYYX",
+  ".XYYYYYX.",
+  "..XXXXX..",
+];
+// Marca de enojo estilo anime (7 x 7)
+const ANGER = [
+  "HH...HH",
+  "H.....H",
+  ".......",
+  ".......",
+  ".......",
+  "H.....H",
+  "HH...HH",
+];
+
 // Convierte la matriz de texto en un canvas reutilizable
-function buildSprite(rows) {
+// (palette permite pintar el mismo dibujo con otros colores)
+function buildSprite(rows, palette = PALETTE) {
   const c = document.createElement("canvas");
   c.width = rows[0].length;
   c.height = rows.length;
   const g = c.getContext("2d");
   rows.forEach((row, y) => {
     [...row].forEach((ch, x) => {
-      if (ch === "." || !PALETTE[ch]) return;
-      g.fillStyle = PALETTE[ch];
+      if (ch === "." || !palette[ch]) return;
+      g.fillStyle = palette[ch];
       g.fillRect(x, y, 1, 1);
     });
   });
@@ -330,7 +463,27 @@ const SPRITES = {
   sitC: buildSprite(GIRL_SIT_C),
   sitSigh: buildSprite(GIRL_SIT_SIGH),
   sweat: buildSprite(SWEAT),
+  side: {
+    chat: buildSprite(MILI_SIDE),
+    talk: buildSprite(sideFace(MILI_SIDE, TALK_FACE, 8)),
+    laugh: buildSprite(sideFace([...SIDE_HEAD, ...MILI_SIDE_LAUGH_TOP, ...STAND_LEGS], LAUGH_FACE, 5)),
+    angry: buildSprite(sideFace(MILI_SIDE, ANGRY_FACE, 4)),
+  },
+  emojiLaugh: buildSprite(EMOJI_LAUGH),
+  anger: buildSprite(ANGER),
   cake1: buildSprite(CAKE1),
   cake2: buildSprite(CAKE2),
   heart: buildSprite(HEART),
 };
+
+// Sprites de cada amiga: platicando (boca cerrada / abierta) y riéndose
+SPRITES.friends = {};
+for (const [key, f] of Object.entries(FRIENDS)) {
+  const palette = { ...PALETTE, ...f.colors };
+  const g = f.glasses;
+  SPRITES.friends[key] = {
+    chat: buildSprite(friendRows(f, g ? GLASSES_FACE : [], 4, false), palette),
+    talk: buildSprite(friendRows(f, g ? GLASSES_TALK : TALK_FACE, g ? 4 : 8, false), palette),
+    laugh: buildSprite(friendRows(f, g ? GLASSES_LAUGH : LAUGH_FACE, g ? 4 : 5, true), palette),
+  };
+}

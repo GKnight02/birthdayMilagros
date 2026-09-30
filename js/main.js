@@ -108,6 +108,15 @@ const CREAM = "#f5ead2";
 const OUTSIDE = "#e3edf2";  // lo que se ve del otro lado del vidrio
 const ALU = "#b8bcc4", ALU_DARK = "#8e939c";
 
+// Piso blanco de mosaico en perspectiva (oficina y pasillo)
+function paintTileFloor(r) {
+  r("#f7f7f4", 0, BACK.y1, W, H - BACK.y1);
+  [133, 140, 150, 164].forEach((y) => r("#e2e2dc", 0, y, W, 1));
+  for (let xb = BACK.x0 - 110; xb <= BACK.x1 + 110; xb += 22)
+    for (let y = BACK.y1; y < H; y++)
+      r("#e2e2dc", Math.round(VP.x + ((xb - VP.x) * (y - VP.y)) / (BACK.y1 - VP.y)), y, 1, 1);
+}
+
 const officeBg = (() => {
   const c = document.createElement("canvas");
   c.width = W; c.height = H;
@@ -116,12 +125,7 @@ const officeBg = (() => {
 
   // Techo y piso blanco
   r("#fbf6ea", 0, 0, W, BACK.y1);
-  r("#f7f7f4", 0, BACK.y1, W, H - BACK.y1);
-  // Juntas del piso: renglones que se abren hacia el frente y líneas hacia el punto de fuga
-  [133, 140, 150, 164].forEach((y) => r("#e2e2dc", 0, y, W, 1));
-  for (let xb = BACK.x0 - 88; xb <= BACK.x1 + 88; xb += 22)
-    for (let y = BACK.y1; y < H; y++)
-      r("#e2e2dc", Math.round(VP.x + ((xb - VP.x) * (y - VP.y)) / (BACK.y1 - VP.y)), y, 1, 1);
+  paintTileFloor(r);
 
   // Pared derecha color crema (columna por columna, en perspectiva)
   for (let x = BACK.x1; x < W; x++) {
@@ -324,6 +328,116 @@ function drawDesk() {
 }
 
 // =====================================================
+//  ESCENA: PASILLO CON SUS AMIGAS
+// =====================================================
+const hallwayBg = (() => {
+  const c = document.createElement("canvas");
+  c.width = W; c.height = H;
+  const g = c.getContext("2d");
+  const r = (col, x, y, w, h) => { g.fillStyle = col; g.fillRect(x, Math.round(y), w, Math.round(h)); };
+
+  // Pared crema, techo con lámparas y piso blanco
+  r(CREAM, 0, 0, W, BACK.y1);
+  r("#fbf6ea", 0, 0, W, 16);
+  r("#e9dbbd", 0, 16, W, 2);
+  for (let x = 30; x < W; x += 70) { r("#ffffff", x, 18, 30, 3); r("#fff4c4", x + 2, 21, 26, 1); }
+  r("#e9dbbd", 0, BACK.y1 - 5, W, 5);
+  paintTileFloor(r);
+
+  // Puertas de madera con ventanita
+  for (const x of [18, 262]) {
+    r("#140c0c", x - 1, 54, 36, BACK.y1 - 53);
+    r("#b07a4f", x, 55, 34, BACK.y1 - 55);
+    r("#8d5a3b", x + 2, 57, 30, 2);
+    r("#140c0c", x + 8, 64, 18, 16);
+    g.globalAlpha = 0.6; r("#bfe3f2", x + 9, 65, 16, 14); g.globalAlpha = 1;
+    r("#e0b040", x + 27, 92, 4, 3);
+  }
+  // Pizarrón de avisos con notitas
+  r("#140c0c", 82, 44, 58, 36);
+  r("#c9955b", 84, 46, 54, 32);
+  r("#ffe066", 88, 50, 12, 10); r("#ff8fb5", 104, 52, 12, 10);
+  r("#8ce99a", 120, 49, 12, 10); r("#7ec8e3", 94, 64, 12, 9); r("#ffffff", 112, 65, 14, 10);
+  // Cuadro con un corazón
+  r("#140c0c", 184, 42, 30, 26);
+  r("#ffffff", 186, 44, 26, 22);
+  [[192, 48, 4, 2], [200, 48, 4, 2], [191, 50, 14, 4], [193, 54, 10, 2], [195, 56, 6, 2], [197, 58, 2, 2]]
+    .forEach(([x, y, w, h]) => r("#ff4d6d", x, y, w, h));
+  // Garrafón de agua
+  r("#140c0c", 228, 96, 16, BACK.y1 - 95);
+  r("#ffffff", 229, 97, 14, BACK.y1 - 97);
+  r("#140c0c", 229, 78, 14, 19);
+  r("#9fd4ff", 230, 79, 12, 17);
+  r("#dff3ff", 231, 81, 2, 12);
+  r("#4a78c2", 231, 104, 3, 3);
+  return c;
+})();
+
+// Las amigas platicando en grupo con Milagros: unas más atrás que otras
+// (feet = altura de los pies) y mirándose entre ellas (facing).
+// Milagros mira a la amiga especial, que la mira de vuelta.
+const MILI_SPOT = { x: 126, feet: GROUND_Y, facing: 1 };
+let friends = [];
+function makeFriends() {
+  return [
+    { key: "dress", x: 34, feet: GROUND_Y - 4, facing: 1 },
+    { key: "bob", x: 80, feet: GROUND_Y - 12, facing: 1 },
+    { key: "best", x: 170, feet: GROUND_Y, facing: -1 },
+    { key: "pony", x: 214, feet: GROUND_Y - 10, facing: -1 },
+  ].map((f, i) => ({ ...f, laugh: true, phase: i * 1.7, hop: 0 }));
+}
+let highlightBest = false; // destellos alrededor de la amiga especial
+
+// Riendo se sacuden un poquito, cada una a su ritmo
+const laughBob = (phase) => (Math.floor(time * 7 + phase) % 2 ? -SCALE : 0);
+// Platicando: la boca se abre y se cierra a ratos
+const talking = (phase) => Math.sin(time * 2 + phase * 3) > 0.2 && Math.floor(time * 6 + phase) % 2 === 0;
+
+function drawFriend(f) {
+  const spr = SPRITES.friends[f.key];
+  const hop = f.hop > 0 ? -Math.round(Math.sin((f.hop / 0.5) * Math.PI) * 10) : 0;
+  const y = f.feet - GIRL_H + (f.laugh ? laughBob(f.phase) : 0) + hop;
+  ctx.fillStyle = "rgba(0,0,0,0.2)";
+  ctx.fillRect(f.x + GIRL_HALF - 10, f.feet - 1, 20, 2);
+  const img = f.laugh ? spr.laugh : talking(f.phase) ? spr.talk : spr.chat;
+  drawSprite(img, f.x, y, SCALE, f.facing === -1);
+}
+
+// Dibuja a todas de atrás hacia adelante para que se encimen bien
+function drawGroup() {
+  const people = [...friends.map((f) => ({ feet: f.feet, draw: () => drawFriend(f) })),
+    { feet: girl.y + GIRL_H, draw: drawGirl }];
+  people.sort((a, b) => a.feet - b.feet).forEach((p) => p.draw());
+}
+
+// Emoticonos que salen de quien se está riendo
+let emoteTimer = 0;
+function spawnEmotes(dt) {
+  emoteTimer -= dt;
+  if (emoteTimer > 0) return;
+  emoteTimer = 0.35 + Math.random() * 0.3;
+  const who = friends.filter((f) => f.laugh).map((f) => ({ x: f.x, top: f.feet - GIRL_H }));
+  if (girl.mood === "laugh") who.push({ x: girl.x, top: girl.y });
+  if (!who.length) return;
+  const w = who[(Math.random() * who.length) | 0];
+  const base = {
+    x: w.x + GIRL_HALF + (Math.random() - 0.5) * 16, y: w.top - 6,
+    vx: (Math.random() - 0.5) * 10, vy: -16 - Math.random() * 8, life: 1.3,
+  };
+  if (Math.random() < 0.35) particles.push({ ...base, type: "emoji" });
+  else particles.push({ ...base, type: "text", text: ["JA", "JAJA", "JAJAJA"][(Math.random() * 3) | 0] });
+}
+
+// Brillitos alrededor de la amiga especial
+function spawnSparkles(f) {
+  particles.push({
+    type: "spark",
+    x: f.x + 4 + Math.random() * 28, y: f.feet - GIRL_H - 4 + Math.random() * 40,
+    vx: 0, vy: -6, life: 0.6,
+  });
+}
+
+// =====================================================
 //  TELÓN DE TEATRO
 // =====================================================
 const curtain = { open: 0, from: 0, to: 0, t: 0, dur: 1, done: null };
@@ -399,6 +513,7 @@ const girl = {
   sitAnim: "type",    // type | sigh
   bodyOffset: 0,      // sube (-1) o baja (+1) los hombros al suspirar
   sweat: null,        // { t } gota de sudor sobre la cabeza
+  mood: null,         // null | chat | laugh | angry (platicando de lado)
 };
 
 const GRAVITY = 520;
@@ -485,6 +600,10 @@ function girlFrame() {
     return [SPRITES.sitA, SPRITES.sitB, SPRITES.sitC][typingPose()];
   }
   if (girl.reach) return door.carry && Math.floor(time * 6) % 2 ? SPRITES.reachB : SPRITES.reachA;
+  if (girl.mood && girl.onGround && girl.targetX === null) {
+    if (girl.mood === "chat" && talking(0.9)) return SPRITES.side.talk;
+    return SPRITES.side[girl.mood];
+  }
   if (girl.jumpDelay > 0 || girl.landTimer > 0) return SPRITES.crouch;
   if (!girl.onGround) return girl.vy < 0 ? SPRITES.jumpUp : SPRITES.jumpFall;
   if (girl.targetX !== null) return SPRITES[RUN_CYCLE[runFrameIndex()]];
@@ -523,10 +642,18 @@ function drawGirl() {
   ctx.fillRect(Math.round(girl.x + GIRL_HALF - sw / 2), Math.round(floorY) - 1, Math.round(sw), 2);
   // Al caminar el cuerpo rebota un poquito hacia arriba
   const stepping = girl.targetX !== null && runFrameIndex() % 2;
-  const bounce = girl.onGround && stepping ? -SCALE : 0;
+  let bounce = girl.onGround && stepping ? -SCALE : 0;
+  if (girl.mood === "laugh") bounce = laughBob(0.5);
 
+  // Enojada: tiembla un poquito de coraje
+  const shake = girl.mood === "angry" ? (Math.floor(time * 20) % 2) * 2 - 1 : 0;
   // Siempre a escala entera para que los pixeles no se deformen
-  drawSprite(girlFrame(), girl.x, girl.y + bounce, SCALE, girl.facing === -1);
+  drawSprite(girlFrame(), girl.x + shake, girl.y + bounce, SCALE, girl.facing === -1);
+  if (girl.mood === "angry") {
+    // marca de enojo que late junto a su cabeza
+    const beat = Math.floor(time * 4) % 2;
+    drawSprite(SPRITES.anger, girl.x + 14 + beat, girl.y - 16 - beat, SCALE);
+  }
 }
 
 // Sentada: el torso y la cabeza se dibujan aparte de las piernas
@@ -649,6 +776,27 @@ function drawParticles() {
       ctx.globalAlpha = Math.min(1, p.life);
       drawSprite(SPRITES.heart, p.x, p.y, 1);
       ctx.globalAlpha = 1;
+    } else if (p.type === "text") {
+      ctx.globalAlpha = Math.min(1, p.life * 1.5);
+      ctx.font = "8px 'Press Start 2P', monospace";
+      ctx.textAlign = "center";
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = "#140c0c";
+      ctx.strokeText(p.text, Math.round(p.x), Math.round(p.y));
+      ctx.fillStyle = "#ffe066";
+      ctx.fillText(p.text, Math.round(p.x), Math.round(p.y));
+      ctx.globalAlpha = 1;
+    } else if (p.type === "emoji") {
+      ctx.globalAlpha = Math.min(1, p.life * 1.5);
+      drawSprite(SPRITES.emojiLaugh, p.x - 4, p.y - 8, 1);
+      ctx.globalAlpha = 1;
+    } else if (p.type === "spark") {
+      ctx.globalAlpha = Math.min(1, p.life * 2);
+      ctx.fillStyle = "#ffe066";
+      const x = Math.round(p.x), y = Math.round(p.y);
+      ctx.fillRect(x, y - 1, 1, 3);
+      ctx.fillRect(x - 1, y, 3, 1);
+      ctx.globalAlpha = 1;
     } else if (p.type === "puff") {
       ctx.globalAlpha = Math.min(1, p.life) * 0.8;
       ctx.fillStyle = "#ffffff";
@@ -762,12 +910,47 @@ async function story() {
   await sigh();
   await say("Pero ese día no dejaba de pensar que algo especial iba a pasar...");
 
+  // Con sus amigas en el pasillo
+  await changeScene(() => {
+    scene = "hallway";
+    girl.pose = "stand";
+    girl.sweat = null;
+    girl.bodyOffset = 0;
+    girl.facing = MILI_SPOT.facing;
+    girl.x = MILI_SPOT.x;
+    girl.y = MILI_SPOT.feet - GIRL_H;
+    girl.mood = "laugh";
+    friends = makeFriends();
+  });
+  await wait(1200);
+  await say(`Por suerte, ${CONFIG.name} no está sola: tiene amigas que siempre la animan y la hacen reír.`);
+
+  // Resalta a la amiga especial
+  const best = friends.find((f) => f.key === "best");
+  friends.forEach((f) => { f.laugh = false; });
+  girl.mood = "chat";
+  highlightBest = true;
+  best.hop = 0.5;
+  Sound.jump();
+  await wait(700);
+  await say("Y entre todas hay una muy especial... un tanto loquita.");
+  best.laugh = true;
+  girl.mood = "laugh";
+  await say("A veces es la que más la anima y la hace reír...");
+  girl.mood = "angry";
+  await say("...y otras veces es la que la hace enojar.");
+  highlightBest = false;
+  girl.mood = "laugh";
+  friends.forEach((f) => { f.laugh = true; });
+  await say("¡Pero así la quiere muchísimo!");
+  await wait(600);
+
   // De regreso afuera
   await changeScene(() => {
     scene = "outdoor";
     girl.pose = "stand";
-    girl.sweat = null;
-    girl.bodyOffset = 0;
+    girl.mood = null;
+    friends = [];
     girl.x = -40;
     girl.y = GIRL_TOP;
   });
@@ -808,6 +991,9 @@ function resetScene() {
   girl.reach = false;
   girl.sweat = null;
   girl.bodyOffset = 0;
+  girl.mood = null;
+  friends = [];
+  highlightBest = false;
   door.open = 0;
   door.done = null;
   door.carry = null;
@@ -884,8 +1070,18 @@ function loop(now) {
   lastTypingPose = pose;
   keyFlash = Math.max(0, keyFlash - dt);
 
+  if (scene === "hallway") {
+    spawnEmotes(dt);
+    for (const f of friends) f.hop = Math.max(0, f.hop - dt);
+    const best = friends.find((f) => f.key === "best");
+    if (highlightBest && best && Math.random() < dt * 14) spawnSparkles(best);
+  }
+
   // Dibujar
-  if (scene === "office") {
+  if (scene === "hallway") {
+    ctx.drawImage(hallwayBg, 0, 0);
+    drawGroup();
+  } else if (scene === "office") {
     ctx.drawImage(officeBg, 0, 0);
     // Mientras está del otro lado del vidrio, el vidrio y la hoja van encima de ella
     if (girl.behindDoor) { drawGirl(); drawLeftGlass(); drawDoors(); drawChair(); }
