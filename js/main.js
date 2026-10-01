@@ -28,52 +28,254 @@ const dialogNext = $("dialog-next");
 const finaleEl = $("finale");
 
 // =====================================================
-//  FONDO (se dibuja una sola vez en un canvas aparte)
+//  ESCENA: AMANECER AFUERA
+//  Capas de atrás hacia adelante: cielo, sol que va saliendo, montañas
+//  lejanas, colinas con pinos, pasto y tierra. Encima se mueven las nubes,
+//  los pájaros, las mariposas, el árbol y las flores con el viento.
 // =====================================================
-const background = (() => {
+const SUN = { x: 252, r: 12 };
+const hillH = (x) => 18 + Math.sin(x / 22) * 8 + Math.sin(x / 9) * 3;
+const mountainH = (x) => 36 + Math.sin(x / 41 + 1) * 10 + Math.sin(x / 17) * 5 + Math.abs(Math.sin(x / 63)) * 8;
+
+// Cielo en franjas (look retro en vez de degradado suave)
+const morningSky = (() => {
   const c = document.createElement("canvas");
   c.width = W; c.height = H;
   const g = c.getContext("2d");
-
-  // Cielo en franjas (look retro en vez de degradado suave)
   const sky = ["#2b1d4e", "#3d2a6b", "#5a3a8a", "#7d4ea3", "#a864b5", "#d47fb8", "#f2a0b8"];
   const band = GROUND_Y / sky.length;
   sky.forEach((col, i) => { g.fillStyle = col; g.fillRect(0, Math.floor(i * band), W, Math.ceil(band)); });
-
-  // Estrellitas
-  g.fillStyle = "#fff";
-  for (let i = 0; i < 40; i++) g.fillRect((i * 97) % W, (i * 53) % 60, 1, 1);
-
-  // Colinas
-  g.fillStyle = "#6a3f8f";
-  for (let x = 0; x < W; x++) {
-    const h = 18 + Math.sin(x / 22) * 8 + Math.sin(x / 9) * 3;
-    g.fillRect(x, GROUND_Y - Math.floor(h), 1, Math.floor(h));
-  }
-
-  // Pasto y tierra
-  g.fillStyle = "#4caf50"; g.fillRect(0, GROUND_Y, W, 4);
-  g.fillStyle = "#2e7d32"; g.fillRect(0, GROUND_Y + 4, W, 2);
-  g.fillStyle = "#8d5a3b"; g.fillRect(0, GROUND_Y + 6, W, H - GROUND_Y - 6);
-  g.fillStyle = "#6d4028";
-  for (let y = GROUND_Y + 10; y < H; y += 8)
-    for (let x = (y / 8) % 2 ? 0 : 8; x < W; x += 16) g.fillRect(x, y, 6, 3);
   return c;
 })();
 
-// Nubes que se mueven
+// Todo lo que va delante del sol (el cielo queda transparente)
+const morningLand = (() => {
+  const c = document.createElement("canvas");
+  c.width = W; c.height = H;
+  const g = c.getContext("2d");
+  const r = (col, x, y, w, h) => { g.fillStyle = col; g.fillRect(Math.round(x), Math.round(y), Math.round(w), Math.round(h)); };
+
+  // Montañas lejanas: el aire las aclara y el sol les pinta la orilla
+  for (let x = 0; x < W; x++) {
+    const top = GROUND_Y - Math.floor(mountainH(x));
+    const lit = mountainH(x + 1) < mountainH(x);   // ladera que mira al sol
+    r("#8a5ca6", x, top, 1, GROUND_Y - top);
+    r(lit ? "#c98fbf" : "#9d6bb2", x, top, 1, 1);
+    if (lit) r("#a874b6", x, top + 1, 1, 2);
+  }
+  // Neblina entre las montañas y las colinas
+  g.globalAlpha = 0.35;
+  r("#f2b8cc", 0, GROUND_Y - 30, W, 6);
+  g.globalAlpha = 0.2;
+  r("#f2b8cc", 0, GROUND_Y - 36, W, 6);
+  g.globalAlpha = 1;
+
+  // Colinas con su orilla iluminada
+  for (let x = 0; x < W; x++) {
+    const h = Math.floor(hillH(x));
+    r("#6a3f8f", x, GROUND_Y - h, 1, h);
+    r("#8a58a8", x, GROUND_Y - h, 1, 1);
+  }
+  // Pinitos sobre las colinas (siluetas)
+  for (const [px, ph] of [[20, 14], [28, 10], [64, 12], [118, 16], [126, 11], [174, 13], [214, 15], [222, 10], [288, 12], [300, 16]]) {
+    const base = GROUND_Y - Math.floor(hillH(px)) + 3;
+    for (let k = 0; k < ph; k++) {
+      const half = Math.floor((k / ph) * 4);
+      r("#4f2f75", px - half, base - ph + k, half * 2 + 1, 1);
+    }
+    r("#3f2560", px, base, 1, 2);
+  }
+
+  // Pasto: orilla con hojitas irregulares, dos tonos y sombra
+  r("#4caf50", 0, GROUND_Y, W, 4);
+  r("#2e7d32", 0, GROUND_Y + 4, W, 2);
+  for (let x = 0; x < W; x++) {
+    const n = (x * 37) % 11;
+    if (n < 4) r("#4caf50", x, GROUND_Y - 1, 1, 1);
+    if (n === 0) r("#5cc060", x, GROUND_Y - 2, 1, 1);
+    if (n > 7) r("#6fd06a", x, GROUND_Y, 1, 1);
+    if (n === 5) r("#3a9440", x, GROUND_Y + 3, 1, 2);
+  }
+  // Tierra con piedritas, raíces y vetas
+  r("#8d5a3b", 0, GROUND_Y + 6, W, H - GROUND_Y - 6);
+  r("#6d4028", 0, GROUND_Y + 6, W, 1);
+  g.fillStyle = "#6d4028";
+  for (let y = GROUND_Y + 10; y < H; y += 8)
+    for (let x = (y / 8) % 2 ? 0 : 8; x < W; x += 16) g.fillRect(x, y, 6, 3);
+  for (let k = 0; k < 26; k++) {
+    const sx = (k * 83 + 11) % W, sy = GROUND_Y + 9 + ((k * 29) % (H - GROUND_Y - 12));
+    r("#5a3420", sx, sy + 1, 3, 1);
+    r("#b98a62", sx, sy, 2, 1);
+  }
+  for (const [rx, ry] of [[40, 160], [190, 166], [270, 158]]) {
+    r("#5a3420", rx, ry, 9, 1); r("#5a3420", rx + 8, ry + 1, 5, 1); r("#5a3420", rx + 3, ry - 1, 2, 1);
+  }
+  return c;
+})();
+
+// Nubes que se mueven (cada una a su velocidad)
 const clouds = [
   { x: 30, y: 22, s: 0.08 },
   { x: 180, y: 40, s: 0.05 },
   { x: 260, y: 15, s: 0.1 },
 ];
-function drawCloud(x, y) {
-  ctx.fillStyle = "#ffffff";
-  ctx.globalAlpha = 0.85;
-  ctx.fillRect(x + 4, y, 16, 4);
-  ctx.fillRect(x, y + 4, 28, 6);
-  ctx.fillRect(x + 8, y - 3, 8, 3);
+// warm: qué tanto les pega la luz rosada del sol por abajo
+function drawCloud(x, y, warm = 1) {
+  ctx.globalAlpha = 0.9;
+  rect("#d68fb0", x + 2, y + 9, 26, 2);                         // panza en sombra
+  rect("#ffffff", x + 4, y, 16, 4);
+  rect("#ffffff", x, y + 4, 28, 6);
+  rect("#ffffff", x + 8, y - 3, 8, 3);
+  rect("#ffffff", x + 18, y + 1, 6, 3);
+  ctx.globalAlpha = 0.9 * warm;
+  rect("#f7b6c8", x + 1, y + 8, 26, 2);                         // luz del amanecer por abajo
+  rect("#ffd9a0", x + 20, y + 4, 7, 2);
   ctx.globalAlpha = 1;
+}
+
+// Pájaros a lo lejos: dos cuadros (alas arriba y alas abajo)
+const birds = [
+  { x: -20, y: 46, s: 22, phase: 0 }, { x: -34, y: 54, s: 22, phase: 1.3 }, { x: -48, y: 42, s: 22, phase: 2.1 },
+  { x: 140, y: 30, s: 15, phase: 0.6 },
+];
+function drawBird(x, y, up, col = "#3a2550") {
+  x = Math.round(x); y = Math.round(y);
+  const d = up ? -1 : 1;
+  rect(col, x - 2, y + d, 1, 1); rect(col, x - 1, y, 3, 1); rect(col, x + 2, y + d, 1, 1);
+}
+
+// Mariposas que revolotean cerca de las flores
+const butterflies = [
+  { cx: 88, cy: 128, rx: 22, ry: 10, sp: 0.7, phase: 0, col: "#ffe066" },
+  { cx: 238, cy: 122, rx: 26, ry: 12, sp: 0.55, phase: 2.4, col: "#7ec8e3" },
+];
+function drawButterfly(b) {
+  const t = time * b.sp + b.phase;
+  const x = Math.round(b.cx + Math.sin(t) * b.rx + Math.sin(t * 2.7) * 4);
+  const y = Math.round(b.cy + Math.sin(t * 1.9) * b.ry + Math.sin(time * 9 + b.phase) * 1.5);
+  const open = Math.floor(time * 12 + b.phase) % 2;
+  rect("#140c0c", x, y - 1, 1, 3);
+  if (open) { rect(b.col, x - 2, y - 2, 2, 2); rect(b.col, x + 1, y - 2, 2, 2); rect(b.col, x - 1, y, 1, 1); rect(b.col, x + 1, y, 1, 1); }
+  else { rect(b.col, x - 1, y - 2, 1, 3); rect(b.col, x + 1, y - 2, 1, 3); }
+}
+
+// Flores y matitas al frente: se mecen con el viento
+const FLOWERS = [
+  [24, "#ff8fb5"], [52, "#ffe066"], [70, "#ffffff"], [96, "#ff4d6d"], [104, "#ffe066"], [214, "#cdb4db"],
+  [232, "#ff8fb5"], [250, "#ffffff"], [276, "#ffe066"], [292, "#ff4d6d"],
+];
+const wind = (x, amp = 1) => Math.round(Math.sin(time * 1.8 + x * 0.21) * amp + Math.sin(time * 0.7 + x * 0.05) * amp * 0.6);
+function drawMeadow() {
+  for (let x = 2; x < W; x += 7) {   // matitas de pasto
+    const s = wind(x, 1);
+    rect("#3a9440", x, GROUND_Y - 3, 1, 3);
+    rect("#5cc060", x + s, GROUND_Y - 5 + ((x * 7) % 3), 1, 2);
+  }
+  for (const [x, col] of FLOWERS) {
+    const s = wind(x, 1.2);
+    rect("#2e7d32", x, GROUND_Y - 5, 1, 5);
+    rect("#2e7d32", x + 1, GROUND_Y - 3, 2, 1);                // hojita
+    rect(col, x - 1 + s, GROUND_Y - 8, 3, 3);
+    rect("#ffd166", x + s, GROUND_Y - 7, 1, 1);
+  }
+}
+
+// Árbol al frente a la izquierda: la copa se mece en bloques y suelta hojitas
+const TREE = { x: 22, top: 60 };
+const TREE_LEAVES = [[34, 70, 20], [16, 80, 15], [52, 82, 15], [33, 54, 13], [20, 64, 11]];
+function drawTree() {
+  const { x, top } = TREE;
+  rect("#140c0c", x, top + 30, 10, GROUND_Y - top - 30);
+  rect("#5a3a2a", x + 1, top + 30, 8, GROUND_Y - top - 30);
+  rect("#7a5038", x + 6, top + 30, 2, GROUND_Y - top - 30);       // lado iluminado
+  rect("#140c0c", x - 3, GROUND_Y - 3, 16, 3);                   // raíces
+  rect("#5a3a2a", x - 2, GROUND_Y - 3, 14, 2);
+  rect("#140c0c", x + 8, top + 40, 12, 3);                       // rama
+  rect("#5a3a2a", x + 9, top + 41, 10, 1);
+  for (const [i, [cx, cy, rad]] of TREE_LEAVES.entries()) {
+    const sx = wind(cx + i * 13, 1.4), sy = Math.round(Math.sin(time * 1.3 + i) * 0.6);
+    pixelCircle(cx + sx, cy + sy, rad + 1, "#140c0c");
+  }
+  for (const [i, [cx, cy, rad]] of TREE_LEAVES.entries()) {
+    const sx = wind(cx + i * 13, 1.4), sy = Math.round(Math.sin(time * 1.3 + i) * 0.6);
+    pixelCircle(cx + sx, cy + sy, rad, "#2e5a3a");
+    pixelCircle(cx + sx + 2, cy + sy - 2, rad - 3, "#3f7a46");
+    pixelCircle(cx + sx + 4, cy + sy - 4, Math.max(2, rad - 9), "#5a9a52");  // brillo del lado del sol
+  }
+  // manzanitas
+  for (const [ax, ay] of [[26, 74], [44, 66], [14, 84], [56, 86]]) {
+    const sx = wind(ax, 1.4);
+    rect("#140c0c", ax + sx - 1, ay - 1, 4, 4);
+    rect("#ff4d6d", ax + sx, ay, 2, 2);
+  }
+}
+
+function drawOutdoor() {
+  const rise = 1 - Math.exp(-sceneT / 7);      // el sol va saliendo
+  const sunY = Math.round(118 - rise * 30);
+  ctx.drawImage(morningSky, 0, 0);
+  // El cielo se calienta conforme sale el sol
+  ctx.globalAlpha = 0.25 * rise;
+  rect("#ffb08a", 0, GROUND_Y - 63, W, 63);
+  ctx.globalAlpha = 0.18 * rise;
+  rect("#ffd08a", 0, GROUND_Y - 42, W, 42);
+  ctx.globalAlpha = 1;
+
+  // Estrellitas que titilan y se apagan con la luz
+  for (let i = 0; i < 40; i++) {
+    ctx.globalAlpha = (1 - rise * 0.8) * (0.4 + 0.6 * Math.abs(Math.sin(time * 1.5 + i * 1.7)));
+    rect("#ffffff", (i * 97) % W, (i * 53) % 60, 1, 1);
+  }
+  // Sol con halo y rayos que giran despacio
+  ctx.fillStyle = "#ffe6a8";
+  for (let i = 0; i < 12; i++) {
+    const a = time * 0.08 + (i / 12) * Math.PI * 2;
+    ctx.globalAlpha = 0.06 * rise;
+    ctx.beginPath();
+    ctx.moveTo(SUN.x, sunY);
+    ctx.lineTo(SUN.x + Math.cos(a - 0.08) * 220, sunY + Math.sin(a - 0.08) * 220);
+    ctx.lineTo(SUN.x + Math.cos(a + 0.08) * 220, sunY + Math.sin(a + 0.08) * 220);
+    ctx.fill();
+  }
+  const pulse = Math.sin(time * 2) * 1.5;
+  ctx.globalAlpha = 0.12;
+  pixelCircle(SUN.x, sunY, SUN.r + 16 + pulse, "#ffd9a0");
+  ctx.globalAlpha = 0.2;
+  pixelCircle(SUN.x, sunY, SUN.r + 7, "#ffe6b0");
+  ctx.globalAlpha = 1;
+  pixelCircle(SUN.x, sunY, SUN.r, "#ffd27a");
+  pixelCircle(SUN.x - 2, sunY - 2, SUN.r - 3, "#fff1b8");
+
+  clouds.forEach((c) => drawCloud(Math.round(c.x), c.y, 0.5 + rise * 0.5));
+  for (const b of birds) drawBird(b.x, b.y + Math.sin(time * 2 + b.phase) * 3, Math.floor(time * 6 + b.phase * 3) % 2);
+
+  ctx.drawImage(morningLand, 0, 0);
+  // Neblina que se desliza sobre las colinas
+  ctx.globalAlpha = 0.18;
+  for (let k = 0; k < 4; k++) {
+    const mx = ((k * 97 + time * 4) % (W + 60)) - 60;
+    rect("#ffe0ec", Math.round(mx), GROUND_Y - 16 + (k % 2) * 3, 50, 3);
+    rect("#ffe0ec", Math.round(mx) + 8, GROUND_Y - 18 + (k % 2) * 3, 30, 2);
+  }
+  ctx.globalAlpha = 1;
+
+  drawTree();
+  drawMeadow();
+  butterflies.forEach(drawButterfly);
+  drawGirl();
+}
+
+function updateOutdoor(dt) {
+  for (const c of clouds) { c.x += c.s * 60 * dt; if (c.x > W) c.x = -30; }
+  for (const b of birds) { b.x += b.s * dt; if (b.x > W + 20) b.x = -20 - Math.random() * 60; }
+  // Hojitas y pétalos que suelta el árbol
+  if (Math.random() < dt * 0.9) {
+    const [cx, cy, rad] = TREE_LEAVES[(Math.random() * TREE_LEAVES.length) | 0];
+    particles.push({
+      type: "leaf", x: cx + (Math.random() - 0.5) * rad, y: cy + rad * 0.5, vx: 8 + Math.random() * 8, vy: 10,
+      color: Math.random() < 0.3 ? "#ff8fb5" : "#5a9a52", life: 6, phase: Math.random() * 6, floor: GROUND_Y - 1 + Math.random() * 6,
+    });
+  }
 }
 
 // =====================================================
@@ -108,6 +310,65 @@ const CREAM = "#f5ead2";
 const OUTSIDE = "#e3edf2";  // lo que se ve del otro lado del vidrio
 const ALU = "#b8bcc4", ALU_DARK = "#8e939c";
 
+// Techo con plafones, pared con lambrín y zócalo (pasillo y puerta de la sala)
+function paintWallDetails(r, g, floorY) {
+  r("#fbf6ea", 0, 0, W, 16);
+  for (let x = 0; x < W; x += 24) r("#efe6d2", x, 0, 1, 16);
+  r("#efe6d2", 0, 8, W, 1);
+  r("#e9dbbd", 0, 16, W, 2);
+  r("#e2d4b4", 0, 18, W, 1);
+  // Lambrín: la parte de abajo de la pared un tono más oscuro, con moldura
+  r("#efe0c2", 0, floorY - 26, W, 21);
+  r("#e2d0aa", 0, floorY - 27, W, 2);
+  r("#fbf3e0", 0, floorY - 25, W, 1);
+  for (let x = 12; x < W; x += 32) r("#e6d6b4", x, floorY - 22, 1, 15);
+  r("#e9dbbd", 0, floorY - 5, W, 5);
+  r("#d8c8a4", 0, floorY - 5, W, 1);
+}
+// Charcos de luz brillante en el piso bajo cada lámpara
+function paintLightPools(r, g, xs, floorY) {
+  g.globalAlpha = 0.5;
+  for (const x of xs) {
+    for (let k = 0; k < 6; k++) r("#ffffff", x - 22 + k * 3, floorY + 2 + k * 2, 44 - k * 6, 2);
+  }
+  g.globalAlpha = 1;
+}
+function paintNoticeBoard(r, x, y) {
+  r("#140c0c", x, y, 58, 36);
+  r("#c9955b", x + 2, y + 2, 54, 32);
+  r("#b98548", x + 2, y + 33, 54, 1);
+  for (let k = 0; k < 14; k++) r("#b8844a", x + 4 + ((k * 23) % 50), y + 4 + ((k * 13) % 28), 1, 1);   // textura del corcho
+  const notes = [[6, 6, 12, 10, "#ffe066"], [22, 8, 12, 10, "#ff8fb5"], [38, 5, 12, 10, "#8ce99a"], [12, 20, 12, 9, "#7ec8e3"], [30, 21, 14, 10, "#ffffff"]];
+  notes.forEach(([nx, ny, w, h, col], i) => {
+    r("#a87440", x + nx + 1, y + ny + 1, w, h);                 // sombrita
+    r(col, x + nx, y + ny, w, h);
+    for (let l = 3; l < h - 2; l += 2) r("#00000022", x + nx + 2, y + ny + l, w - 4 - (l % 3), 1);   // renglones
+    r(["#ff4d6d", "#4a78c2", "#e0b040"][i % 3], x + nx + w / 2 - 1, y + ny, 2, 2);  // chinche
+  });
+}
+function paintClockFace(g, cx, cy) {
+  const disc = (rad, col) => {
+    g.fillStyle = col;
+    for (let dy = -rad; dy <= rad; dy++) { const half = Math.round(Math.sqrt(rad * rad - dy * dy)); g.fillRect(cx - half, cy + dy, half * 2, 1); }
+  };
+  disc(8, "#140c0c"); disc(7, "#e0b040"); disc(6, "#ffffff");
+  g.fillStyle = "#c9c9d9";
+  for (const [dx, dy] of [[0, -5], [5, 0], [0, 5], [-5, 0]]) g.fillRect(cx + dx - (dx > 0 ? 1 : 0), cy + dy - (dy > 0 ? 1 : 0), 1, 1);
+  g.fillStyle = "#e2d4b4"; g.fillRect(cx - 6, cy + 9, 12, 1);
+}
+function paintCooler(r, x, floorY) {
+  r("#140c0c", x, floorY - 32, 16, 32);
+  r("#ffffff", x + 1, floorY - 31, 14, 30);
+  r("#e2e2ea", x + 11, floorY - 31, 4, 30);
+  r("#c9c9d9", x + 3, floorY - 22, 10, 1);
+  r("#140c0c", x + 1, floorY - 50, 14, 19);
+  r("#9fd4ff", x + 2, floorY - 49, 12, 17);
+  r("#7ec0f0", x + 2, floorY - 46, 12, 1);
+  r("#dff3ff", x + 3, floorY - 47, 2, 12);
+  r("#4a78c2", x + 3, floorY - 24, 3, 3);
+  r("#ff4d6d", x + 8, floorY - 24, 3, 3);
+}
+
 // Piso blanco de mosaico en perspectiva (oficina y pasillo)
 function paintTileFloor(r) {
   r("#f7f7f4", 0, BACK.y1, W, H - BACK.y1);
@@ -126,6 +387,22 @@ const officeBg = (() => {
   // Techo y piso blanco
   r("#fbf6ea", 0, 0, W, BACK.y1);
   paintTileFloor(r);
+  // Paneles de luz en el techo, en perspectiva hacia el fondo
+  const ceilX = (u, y) => VP.x + ((u - VP.x) * (VP.y - y)) / (VP.y - BACK.y0);
+  for (const [y0, y1] of [[2, 6], [10, 13]]) {
+    for (let y = y0 - 1; y <= y1 + 1; y++) {
+      const a = Math.round(ceilX(128, y)), b = Math.round(ceilX(192, y));
+      r(y < y0 || y > y1 ? "#e6dfcc" : y === y0 ? "#fffdf4" : "#ffffff", a, y, b - a, 1);
+    }
+  }
+  r("#efe8d6", 0, BACK.y0 - 1, W, 1);
+  // Reflejo de los ventanales sobre el piso brillante
+  g.globalAlpha = 0.35;
+  for (const x of [100, 152, 204]) {
+    for (let y = BACK.y1; y < BACK.y1 + 14; y++)
+      r("#ffffff", Math.round(VP.x + ((x - VP.x) * (y - VP.y)) / (BACK.y1 - VP.y)), y, 20 - (y - BACK.y1), 1);
+  }
+  g.globalAlpha = 1;
 
   // Pared derecha color crema (columna por columna, en perspectiva)
   for (let x = BACK.x1; x < W; x++) {
@@ -145,10 +422,20 @@ const officeBg = (() => {
   onWall(263, 267, 0.27, 0.3, "#ff4d6d"); onWall(269, 273, 0.27, 0.3, "#ff4d6d");
   onWall(262, 274, 0.3, 0.34, "#ff4d6d");
   onWall(264, 272, 0.34, 0.37, "#ff4d6d"); onWall(266, 270, 0.37, 0.39, "#ff4d6d");
-  onWall(284, 298, 0.2, 0.3, "#140c0c");        // reloj
+  onWall(284, 298, 0.2, 0.3, "#140c0c");        // reloj (las manecillas se mueven, ver drawOfficeClock)
   onWall(286, 296, 0.215, 0.285, "#ffffff");
-  onWall(290, 292, 0.225, 0.255, "#140c0c");
-  onWall(290, 294, 0.25, 0.26, "#140c0c");
+  onWall(290, 292, 0.218, 0.222, "#c9c9d9"); onWall(290, 292, 0.278, 0.282, "#c9c9d9");
+  onWall(284, 298, 0.34, 0.5, "#140c0c");       // calendario
+  onWall(285, 297, 0.35, 0.49, "#ffffff");
+  onWall(285, 297, 0.35, 0.38, "#ff4d6d");
+  for (let k = 0; k < 3; k++) for (let j = 0; j < 3; j++) onWall(287 + k * 4, 289 + k * 4, 0.405 + j * 0.03, 0.418 + j * 0.03, "#c9c9d9");
+  onWall(291, 293, 0.435, 0.448, "#ff4d6d");    // un día marcado con corazón
+  onWall(304, 308, 0.52, 0.58, "#140c0c");      // apagador
+  onWall(305, 307, 0.53, 0.57, "#ffffff");
+  // Brillo del cuadro y sombra bajo el cuadro y el reloj
+  onWall(258, 261, 0.22, 0.3, "#f4f4ff");
+  onWall(257, 281, 0.44, 0.455, "#e2d4b4");
+  onWall(285, 299, 0.3, 0.31, "#e2d4b4");
 
   // Lo que se ve del otro lado del vidrio izquierdo (el vidrio va encima, en drawLeftGlass)
   for (let x = 0; x < BACK.x0; x++) {
@@ -162,6 +449,12 @@ const officeBg = (() => {
   r(OUTSIDE, BACK.x0, BACK.y0, bw, bh);
   r("#d3e0e7", BACK.x0, BACK.y1 - 22, bw, 22);
   r("#c9d6de", BACK.x0, BACK.y1 - 23, bw, 1);
+  // Del otro lado: lámparas, una puerta, un sillón y una planta
+  for (const x of [104, 160, 216]) { r("#ffffff", x, BACK.y0 + 4, 18, 2); r("#d8e4ea", x + 2, BACK.y0 + 6, 14, 1); }
+  r("#b8c6d0", 108, 52, 24, 54); r("#cfdbe2", 110, 54, 20, 52); r("#9fb0bc", 126, 80, 3, 2);
+  r("#b8c6d0", 150, 86, 34, 14); r("#c4d0d8", 150, 80, 34, 7); r("#b8c6d0", 152, 100, 2, 6); r("#b8c6d0", 180, 100, 2, 6);
+  r("#bccad2", 214, 94, 12, 12);
+  for (const [lx, ly, lw, lh] of [[212, 74, 4, 20], [218, 66, 4, 28], [224, 76, 4, 18]]) r("#a8c4b4", lx, ly, lw, lh);
   g.globalAlpha = 0.35;
   r("#bfe3f2", BACK.x0, BACK.y0, bw, bh);
   g.globalAlpha = 0.6;
@@ -180,6 +473,169 @@ const officeBg = (() => {
 })();
 
 const rect = (col, x, y, w, h) => { ctx.fillStyle = col; ctx.fillRect(x, Math.round(y), w, Math.round(h)); };
+
+// =====================================================
+//  LUZ, SOMBRAS Y REFLEJOS (compartido por todas las escenas)
+//  Cada escena define su luz con setAmbient: un tinte del ambiente,
+//  un contraluz (rim) del lado de donde viene la luz y qué tanto
+//  refleja el piso a los personajes.
+// =====================================================
+const ambient = {};
+function setAmbient(o = {}) {
+  Object.assign(ambient, { tint: null, tintA: 0, rim: null, rimA: 0, rimDx: 1, reflect: 0 }, o);
+}
+setAmbient();
+
+// Sombra suave: elipse pixelada, más oscura en el centro
+function softShadow(cx, y, w, a = 0.25) {
+  cx = Math.round(cx); y = Math.round(y);
+  ctx.fillStyle = "#1a0f1f";
+  const band = (ww, yy, al) => { ctx.globalAlpha = al; ctx.fillRect(cx - Math.round(ww / 2), yy, Math.round(ww), 1); };
+  band(w * 0.7, y - 2, a * 0.45);
+  band(w, y - 1, a * 0.7);
+  band(w * 0.8, y, a * 0.6);
+  band(w * 0.45, y - 1, a * 0.5);
+  ctx.globalAlpha = 1;
+}
+
+// Personajes: el sprite se arma en un canvas auxiliar (con el torso
+// separado de las piernas si respira o suspira), se tiñe con la luz de
+// la escena y se dibuja con su contraluz y su reflejo en el piso.
+const actorBuf = document.createElement("canvas");
+const rimBuf = document.createElement("canvas");
+const ACTOR_PAD = 2;
+// parts: [fila inicial, número de filas, desplazamiento en y]
+function drawLit(img, x, y, flip = false, parts = [[0, img.height, 0]], floorY = null) {
+  x = Math.round(x); y = Math.round(y);
+  const w = img.width * SCALE, h = img.height * SCALE + ACTOR_PAD * 2;
+  actorBuf.width = w; actorBuf.height = h;
+  const g = actorBuf.getContext("2d");
+  g.imageSmoothingEnabled = false;
+  for (const [sy, sh, dy] of parts) g.drawImage(img, 0, sy, img.width, sh, 0, ACTOR_PAD + sy * SCALE + dy, w, sh * SCALE);
+  if (ambient.tint && ambient.tintA > 0) {
+    g.globalCompositeOperation = "source-atop";
+    g.globalAlpha = ambient.tintA;
+    g.fillStyle = ambient.tint;
+    g.fillRect(0, 0, w, h);
+    g.globalAlpha = 1;
+    g.globalCompositeOperation = "source-over";
+  }
+  const put = (src, dx, a, sy = 0, sh = h, mirror = false) => {
+    ctx.save();
+    ctx.globalAlpha *= a;
+    ctx.translate(flip ? x + w + dx : x + dx, mirror ? 2 * floorY : 0);
+    ctx.scale(flip ? -1 : 1, mirror ? -1 : 1);
+    ctx.drawImage(src, 0, sy, w, sh, 0, y - ACTOR_PAD + sy, w, sh);
+    ctx.restore();
+  };
+  // Reflejo en el piso: más claro conforme se aleja de los pies
+  if (floorY !== null && ambient.reflect > 0) {
+    const feet = ACTOR_PAD + img.height * SCALE;
+    put(actorBuf, 0, ambient.reflect * 0.45, 0, feet, true);
+    put(actorBuf, 0, ambient.reflect * 0.55, feet - 12, 12, true);
+  }
+  if (ambient.rim && ambient.rimA > 0) {
+    rimBuf.width = w; rimBuf.height = h;
+    const r = rimBuf.getContext("2d");
+    r.drawImage(actorBuf, 0, 0);
+    r.globalCompositeOperation = "source-in";
+    r.fillStyle = ambient.rim;
+    r.fillRect(0, 0, w, h);
+    put(rimBuf, ambient.rimDx, ambient.rimA);
+  }
+  put(actorBuf, 0, 1);
+}
+// Respirando: el torso sube un pixel de vez en cuando (cut = fila donde empiezan las piernas)
+const breath = (phase) => (Math.sin(time * 2.2 + phase) > 0.35 ? 1 : 0);
+const breathing = (img, cut, lift) => (lift ? [[cut, img.height - cut, 0], [0, cut + 1, -lift]] : undefined);
+// Parpadeo: cada quien a su ritmo
+const blinking = (phase) => (time + phase * 0.77) % 3.4 < 0.14;
+
+// Lámparas de techo: cono de luz hacia el piso y charco de luz abajo
+function ceilingLight(x, w, y, floorY, power = 1) {
+  ctx.globalAlpha = 0.07 * power;
+  ctx.fillStyle = "#fff6d8";
+  ctx.beginPath();
+  ctx.moveTo(x, y); ctx.lineTo(x + w, y); ctx.lineTo(x + w + 18, floorY); ctx.lineTo(x - 18, floorY);
+  ctx.fill();
+  ctx.globalAlpha = 0.5 * power;
+  rect("#fff4c4", x + 2, y, w - 4, 1);
+  ctx.globalAlpha = 1;
+}
+// Lámpara que de vez en cuando parpadea
+const flicker = (seed) => {
+  const k = Math.floor(time * 12);
+  return ((k * 2654435761 + seed * 977) >>> 0) % 97 < 4 ? 0.3 : 1;
+};
+
+// Polvito que flota en la luz
+function drawMotes(n, x0, y0, w, h, seed = 0, col = "#fff8e0") {
+  for (let i = 0; i < n; i++) {
+    const px = x0 + ((i * 53 + seed * 31 + time * (3 + (i % 3))) % w);
+    const py = y0 + ((i * 37 + seed * 17 + Math.sin(time * 0.8 + i) * 6 + h) % h);
+    ctx.globalAlpha = 0.25 + 0.45 * Math.abs(Math.sin(time * 1.3 + i * 1.7));
+    rect(col, Math.round(px), Math.round(py), 1, 1);
+  }
+  ctx.globalAlpha = 1;
+}
+
+// Reloj de pared redondo: el segundero avanza a saltitos
+function clockHands(cx, cy, len, sx = 1) {
+  const sec = Math.floor(time) % 60, min = (time / 60 + 12) % 60;
+  const hand = (frac, l, col) => {
+    const a = frac * Math.PI * 2 - Math.PI / 2;
+    for (let k = 0; k <= l; k++) rect(col, Math.round(cx + Math.cos(a) * k * sx), Math.round(cy + Math.sin(a) * k), 1, 1);
+  };
+  hand(min / 60, len - 1, "#140c0c");
+  hand(0.33 + min / 720, len - 2, "#140c0c");
+  hand(sec / 60, len, "#ff4d6d");
+}
+
+// Planta en maceta: las hojas se mecen un poquito
+function drawPlant(leaves, seed = 0) {
+  for (const [i, [x, y, w, h]] of leaves.entries()) {
+    const s = Math.round(Math.sin(time * 1.4 + i * 1.7 + seed) * 0.8);
+    rect("#1e5a3a", x - 1 + s, y - 1, w + 2, h + 2);
+    rect("#3a8f48", x + s, y, w, h);
+    rect("#5cb85c", x + s, y, 1, Math.max(1, h - 4));        // brillo de la hoja
+  }
+}
+
+// Garrafón: burbujas que suben de vez en cuando por el agua
+function coolerBubbles(x, top, bottom, seed = 0) {
+  const t = (time + seed) % 4;
+  if (t > 1.6) return;
+  for (let k = 0; k < 3; k++) {
+    const y = bottom - (t - k * 0.18) * (bottom - top) / 1.2;
+    if (y > bottom || y < top) continue;
+    rect("#ffffff", x + ((k * 3) % 5) + Math.round(Math.sin(time * 9 + k)), Math.round(y), k === 0 ? 2 : 1, k === 0 ? 2 : 1);
+  }
+}
+
+// Alguien que pasa caminando del otro lado de un vidrio o una ventanita
+function drawPasser(x, feet, h, col, phase = 0) {
+  x = Math.round(x);
+  const bob = Math.floor(time * 4 + phase) % 2;
+  const y = feet - h - bob;
+  pixelCircle(x, y + 3, 3, col);
+  rect(col, x - 4, y + 7, 9, Math.round(h * 0.45));
+  const legs = Math.floor(time * 4 + phase) % 2 ? 1 : -1;
+  rect(col, x - 3 + legs, y + 7 + Math.round(h * 0.45), 3, Math.round(h * 0.45) - 6 + bob);
+  rect(col, x + 1 - legs, y + 7 + Math.round(h * 0.45), 3, Math.round(h * 0.45) - 6 + bob);
+}
+
+// Notitas del pizarrón: de vez en cuando una se levanta con el aire
+function flutterNote(x, y, w, h, col, seed) {
+  const t = (time + seed) % 5;
+  if (t > 0.8) return;
+  const lift = Math.round(Math.sin((t / 0.8) * Math.PI) * 2);
+  rect("#c9955b", x, y + h - 3, w, 3);
+  rect(col, x + 1, y + h - 3 - lift, w, 3);
+  rect("#ffffff", x + w - 3, y + h - 3 - lift, 2, 1);
+  ctx.globalAlpha = 0.3;
+  rect("#140c0c", x + 1, y + h, w, 1);
+  ctx.globalAlpha = 1;
+}
 
 // Mueve la hoja de la puerta: 1 abierta, 0 cerrada.
 // Si ella la está empujando, su cuerpo avanza junto con la hoja.
@@ -248,13 +704,85 @@ function drawDoors() {
   rect("#6e737c", hx, hy - 4, 2, 12);                  // jaladera
 }
 
+// Lo que se mueve detrás del vidrio: gente que pasa por el pasillo de
+// afuera, un destello que recorre los ventanales y el reloj
+const OFFICE_PASSERS = [
+  { speed: 14, offset: 0, h: 32, col: "#9fb0c0" },
+  { speed: -10, offset: 130, h: 30, col: "#b0a4bc" },
+];
+function drawOfficeBack() {
+  const bw = BACK.x1 - BACK.x0, bh = BACK.y1 - BACK.y0;
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(BACK.x0, BACK.y0 + 2, bw, bh - 5);
+  ctx.clip();
+  ctx.globalAlpha = 0.55;
+  for (const [i, p] of OFFICE_PASSERS.entries()) {
+    const span = bw + 60;
+    const d = (((sceneT * p.speed + p.offset) % span) + span) % span;
+    const x = p.speed > 0 ? BACK.x0 - 30 + d : BACK.x1 + 30 - d;
+    drawPasser(x, BACK.y1 - 7, p.h, p.col, i);
+  }
+  ctx.globalAlpha = 1;
+  // Destello que cruza el vidrio cada tantos segundos
+  const sweep = (sceneT % 7) / 2.2;
+  if (sweep < 1) {
+    const sx = BACK.x0 - 40 + sweep * (bw + 80);
+    ctx.globalAlpha = 0.35;
+    ctx.fillStyle = "#ffffff";
+    ctx.beginPath();
+    ctx.moveTo(sx, BACK.y0); ctx.lineTo(sx + 10, BACK.y0); ctx.lineTo(sx - 30, BACK.y1); ctx.lineTo(sx - 40, BACK.y1);
+    ctx.moveTo(sx + 14, BACK.y0); ctx.lineTo(sx + 17, BACK.y0); ctx.lineTo(sx - 23, BACK.y1); ctx.lineTo(sx - 26, BACK.y1);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+  }
+  ctx.restore();
+  [BACK.x0 - 1, 144, 196, BACK.x1 - 2].forEach((x) => rect(ALU_DARK, x, BACK.y0, 2, bh));
+  rect(ALU, BACK.x0, BACK.y1 - 3, bw, 3);
+
+  // Reloj: centro de la carátula sobre la pared en perspectiva
+  const onWallY = (x, v) => rightTop(x) + (rightBot(x) - rightTop(x)) * v;
+  clockHands(291, Math.round(onWallY(291, 0.25)), 3, 0.8);
+}
+
+// Rayos de sol que entran por el vidrio y polvito flotando en ellos
+function drawOfficeLight() {
+  const k = 0.8 + Math.sin(time * 0.6) * 0.2;
+  ctx.fillStyle = "#fff4d0";
+  for (const [x0, x1, f0, f1] of [[8, 34, 120, 176], [52, 70, 168, 206]]) {
+    ctx.globalAlpha = 0.07 * k;
+    ctx.beginPath();
+    ctx.moveTo(x0, leftTop(x0) + 12); ctx.lineTo(x1, leftTop(x1) + 12);
+    ctx.lineTo(f1, H); ctx.lineTo(f0, H);
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+  drawMotes(14, 60, 70, 120, 100, 1);
+}
+
+// Planta en la esquina, junto a la pared crema
+function drawOfficePlant() {
+  const x = 286, base = 170;
+  softShadow(x + 7, base + 1, 22, 0.25);
+  drawPlant([[x + 1, base - 30, 4, 18], [x + 5, base - 42, 4, 30], [x + 10, base - 34, 4, 22], [x - 3, base - 22, 4, 10], [x + 14, base - 24, 3, 11]], 2);
+  rect("#140c0c", x - 1, base - 13, 16, 13);
+  rect("#e8e8e4", x, base - 12, 14, 12);
+  rect("#ffffff", x + 1, base - 12, 3, 11);
+  rect("#c9c9d9", x + 11, base - 12, 3, 12);
+  rect("#d8d8d4", x, base - 12, 14, 2);
+}
+
 // Silla de oficina (se dibuja detrás de ella)
 function drawChair() {
   const x = OFFICE.girlX, y = OFFICE.girlY;
+  softShadow(OFFICE.girlX + 53, GROUND_Y + 1, 62, 0.22);         // sombra del escritorio
+  softShadow(x + 20, GROUND_Y + 1, 36, 0.3);
   rect("#140c0c", x + 1, y + 18, 10, 22);   // respaldo
   rect("#3b4a6b", x + 3, y + 20, 6, 18);
+  rect("#52648a", x + 3, y + 20, 2, 16);    // brillo del tapiz
   rect("#140c0c", x + 6, y + 34, 26, 5);    // asiento
   rect("#3b4a6b", x + 8, y + 35, 22, 2);
+  rect("#52648a", x + 8, y + 35, 22, 1);
   rect("#140c0c", x + 17, y + 39, 5, 7);    // poste
   rect("#140c0c", x + 6, y + 45, 28, 3);    // base con ruedas
   rect("#140c0c", x + 4, GROUND_Y - 3, 4, 3);
@@ -290,6 +818,13 @@ function drawDesk() {
     if (i === 0 || i === sw - 1) continue;
     ctx.globalAlpha = glow;
     rect(i < 4 ? "#dff3ff" : "#9fd4ff", mx + i, y0, 1, h);       // pantalla prendida
+    // Renglones de texto que van subiendo conforme escribe
+    const scroll = Math.floor(time * 1.5);
+    ctx.globalAlpha = glow * 0.7;
+    for (let k = 0; 3 + k * 3 < h - 2; k++) {
+      const n = (((k + scroll) * 2654435761) >>> 0) % 9;
+      if (n > 1 && i >= 2 && i < 2 + n) rect(n % 3 ? "#4a78c2" : "#e8668f", mx + i, y0 + 3 + k * 3, 1, 1);
+    }
     ctx.globalAlpha = 1;
   }
   rect("#140c0c", mx + sw, cy - 10, 5, 20);                      // carcasa de atrás
@@ -310,6 +845,11 @@ function drawDesk() {
   rect("#140c0c", dx + 8, top + 18, dw - 16, 3);                 // travesaño
   rect(ALU, dx + 8, top + 19, dw - 16, 1);
 
+  // Pila de hojas y una pluma
+  rect("#140c0c", dx + 17, top - 5, 11, 4);
+  rect("#ffffff", dx + 18, top - 4, 9, 1);
+  rect("#f2f2ea", dx + 18, top - 3, 9, 1);
+  rect("#ff8fb5", dx + 19, top - 6, 7, 1);
   // Teclado de lado bajo su mano; la tecla presionada brilla
   rect("#140c0c", dx, top - 3, 16, 3);
   rect("#e4e4ea", dx + 1, top - 3, 14, 1);
@@ -338,11 +878,10 @@ const hallwayBg = (() => {
 
   // Pared crema, techo con lámparas y piso blanco
   r(CREAM, 0, 0, W, BACK.y1);
-  r("#fbf6ea", 0, 0, W, 16);
-  r("#e9dbbd", 0, 16, W, 2);
+  paintWallDetails(r, g, BACK.y1);
   for (let x = 30; x < W; x += 70) { r("#ffffff", x, 18, 30, 3); r("#fff4c4", x + 2, 21, 26, 1); }
-  r("#e9dbbd", 0, BACK.y1 - 5, W, 5);
   paintTileFloor(r);
+  paintLightPools(r, g, [45, 115, 185, 255], BACK.y1);
 
   // Puertas de madera con ventanita
   for (const x of [18, 262]) {
@@ -354,24 +893,49 @@ const hallwayBg = (() => {
     r("#e0b040", x + 27, 92, 4, 3);
   }
   // Pizarrón de avisos con notitas
-  r("#140c0c", 82, 44, 58, 36);
-  r("#c9955b", 84, 46, 54, 32);
-  r("#ffe066", 88, 50, 12, 10); r("#ff8fb5", 104, 52, 12, 10);
-  r("#8ce99a", 120, 49, 12, 10); r("#7ec8e3", 94, 64, 12, 9); r("#ffffff", 112, 65, 14, 10);
+  paintNoticeBoard(r, 82, 44);
   // Cuadro con un corazón
   r("#140c0c", 184, 42, 30, 26);
   r("#ffffff", 186, 44, 26, 22);
   [[192, 48, 4, 2], [200, 48, 4, 2], [191, 50, 14, 4], [193, 54, 10, 2], [195, 56, 6, 2], [197, 58, 2, 2]]
     .forEach(([x, y, w, h]) => r("#ff4d6d", x, y, w, h));
+  r("#ff8fb5", 193, 50, 2, 2);
+  r("#e2d4b4", 185, 68, 30, 1);
+  // Reloj redondo (las manecillas se mueven)
+  paintClockFace(g, 158, 30);
   // Garrafón de agua
-  r("#140c0c", 228, 96, 16, BACK.y1 - 95);
-  r("#ffffff", 229, 97, 14, BACK.y1 - 97);
-  r("#140c0c", 229, 78, 14, 19);
-  r("#9fd4ff", 230, 79, 12, 17);
-  r("#dff3ff", 231, 81, 2, 12);
-  r("#4a78c2", 231, 104, 3, 3);
+  paintCooler(r, 228, BACK.y1);
+  // Apagador junto a la puerta
+  r("#140c0c", 252, 86, 5, 8); r("#ffffff", 253, 87, 3, 6); r("#c9c9d9", 254, 89, 1, 2);
   return c;
 })();
+
+// Las puertas de madera tienen ventanita: a veces alguien pasa del otro lado
+const HALL_WINDOWS = [{ x: 27, y: 65 }, { x: 271, y: 65 }];
+function drawHallwayBack() {
+  for (const [i, w] of HALL_WINDOWS.entries()) {
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(w.x, w.y, 16, 14);
+    ctx.clip();
+    const t = (sceneT + i * 3.7) % 9;
+    if (t < 2.5) {
+      ctx.globalAlpha = 0.6;
+      drawPasser(w.x - 8 + (t / 2.5) * 32 * (i ? -1 : 1) + (i ? 32 : 0), w.y + 26, 22, i ? "#7a6a8a" : "#6a7a8a", i);
+    }
+    ctx.restore();
+  }
+  ctx.globalAlpha = 1;
+  coolerBubbles(232, 80, 94, 0.6);
+  flutterNote(104, 52, 12, 10, "#ff8fb5", 1.2);
+  flutterNote(112, 65, 14, 10, "#ffffff", 3.4);
+  clockHands(158, 30, 4);
+}
+// Conos de luz de las lámparas (una parpadea de vez en cuando) y polvito
+function drawHallwayLight() {
+  [30, 100, 170, 240].forEach((x, i) => ceilingLight(x, 30, 21, H, i === 2 ? flicker(3) : 1));
+  drawMotes(16, 20, 26, 280, 100, 2);
+}
 
 // Las amigas platicando en grupo con Milagros: unas más atrás que otras
 // (feet = altura de los pies) y mirándose entre ellas (facing).
@@ -393,15 +957,27 @@ const laughBob = (phase) => (Math.floor(time * 7 + phase) % 2 ? -SCALE : 0);
 // Platicando: la boca se abre y se cierra a ratos
 const talking = (phase) => Math.sin(time * 2 + phase * 3) > 0.2 && Math.floor(time * 6 + phase) % 2 === 0;
 
-function drawFriend(f) {
+// Platicando mueven las manos a ratos; calladas parpadean
+function friendFrame(f) {
   const spr = SPRITES.friends[f.key];
+  if (f.laugh) return spr.laugh;
+  if (!f.quiet && Math.sin(time * 2 + f.phase * 3) > 0.2) {
+    const open = Math.floor(time * 6 + f.phase) % 2 === 0;
+    if (Math.sin(time * 0.9 + f.phase * 2) > 0) return open ? spr.gesture : spr.gestureUp;
+    return open ? spr.talk : spr.chat;
+  }
+  return blinking(f.phase) ? spr.blink : spr.chat;
+}
+
+function drawFriend(f) {
   const hop = f.hop > 0 ? -Math.round(Math.sin((f.hop / 0.5) * Math.PI) * 10) : 0;
   const y = f.feet - GIRL_H + (f.laugh ? laughBob(f.phase) : 0) + hop - (f.lift || 0);
-  ctx.fillStyle = "rgba(0,0,0,0.2)";
-  ctx.fillRect(f.x + GIRL_HALF - 10, f.feet - 1, 20, 2);
-  const img = f.laugh ? spr.laugh : !f.quiet && talking(f.phase) ? spr.talk : spr.chat;
-  drawSprite(img, f.x, y, SCALE, f.facing === -1);
-  return y;
+  // La sombra se encoge cuando brincan
+  softShadow(f.x + GIRL_HALF, f.feet, Math.max(12, 24 + (y - (f.feet - GIRL_H)) * 0.6), 0.26);
+  const img = friendFrame(f);
+  const lift = f.laugh || hop || f.lift ? 0 : breath(f.phase);
+  drawLit(img, f.x, y, f.facing === -1, breathing(img, 14, lift), f.feet);
+  return y - lift;
 }
 
 // Dibuja a todas de atrás hacia adelante para que se encimen bien
@@ -478,21 +1054,42 @@ function skyCanvas(bands) {
 const nightSky = skyCanvas(["#0b0d26", "#10143a", "#161d48", "#1d2656", "#252f64", "#2e3870", "#38427c"]);
 const dawnSky = skyCanvas(["#3d2a6b", "#5a3a8a", "#8a4f9e", "#c46a9e", "#f08a8a", "#ffaa7a", "#ffd08a"]);
 
-// Ciudad a lo lejos, colina con pasto y un árbol (el cielo queda transparente)
+// Ciudad a lo lejos, colina con pasto y el tronco del árbol (el cielo queda transparente)
+const CITY_WINDOWS = [];   // ventanas que se prenden y se apagan
+const ANTENNAS = [];       // foquitos rojos en lo alto de los edificios
+const PUDDLES = [[60, 166, 26], [196, 160, 30], [268, 170, 22]];   // [centro x, y, ancho]
 const nightLand = (() => {
   const c = document.createElement("canvas");
   c.width = W; c.height = H;
   const g = c.getContext("2d");
   const r = (col, x, y, w, h) => { g.fillStyle = col; g.fillRect(x, Math.round(y), w, Math.round(h)); };
 
+  // Edificios lejanos, más azulados por la distancia
+  for (let x = -6, k = 0; x < W; k++) {
+    const w = 10 + ((k * 5) % 3) * 6, h = 34 + ((k * 11) % 4) * 9;
+    r("#141634", x, GROUND_Y - 14 - h, w, h);
+    if (k % 3 === 1) r("#141634", x + w / 2 - 1, GROUND_Y - 22 - h, 2, 8);
+    for (let wy = GROUND_Y - 10 - h; wy < GROUND_Y - 30; wy += 6)
+      for (let wx = x + 2; wx < x + w - 2; wx += 3)
+        if (((wx * 13 + wy * 7) >>> 0) % 7 === 0) r("#8a7a5a", wx, wy, 1, 1);
+    x += w + 1;
+  }
   // Edificios con ventanitas encendidas
   let x = 0, k = 0;
   while (x < W) {
     const w = 14 + ((k * 7) % 4) * 4, h = 18 + ((k * 13) % 5) * 7;
     r("#1a1c3a", x, GROUND_Y - 14 - h, w, h + 14);
+    r("#23264a", x, GROUND_Y - 14 - h, 1, h + 14);                 // orilla que da a la luna
+    r("#10122a", x, GROUND_Y - 14 - h, w, 1);
+    if (h >= 46) ANTENNAS.push({ x: x + Math.floor(w / 2), y: GROUND_Y - 22 - h, phase: k });
+    if (h >= 46) r("#10122a", x + Math.floor(w / 2), GROUND_Y - 21 - h, 1, 7);
     for (let wy = GROUND_Y - 10 - h; wy < GROUND_Y - 16; wy += 5)
-      for (let wx = x + 3; wx < x + w - 3; wx += 4)
-        if (((wx * 31 + wy * 17) >>> 0) % 5 < 2) r("#ffd27a", wx, wy, 2, 2);
+      for (let wx = x + 3; wx < x + w - 3; wx += 4) {
+        const n = ((wx * 31 + wy * 17) >>> 0) % 5;
+        if (n < 2) r("#ffd27a", wx, wy, 2, 2);
+        else if (n === 2 && (wx < 16 || wx > 32)) CITY_WINDOWS.push({ x: wx, y: wy, seed: wx * 7 + wy });
+        else r("#14162e", wx, wy, 2, 2);
+      }
     x += w + 2; k++;
   }
   // Colina oscura delante de la ciudad
@@ -507,20 +1104,103 @@ const nightLand = (() => {
   g.fillStyle = "#211a2c";
   for (let y = GROUND_Y + 10; y < H; y += 8)
     for (let x = (y / 8) % 2 ? 0 : 8; x < W; x += 16) g.fillRect(x, y, 6, 3);
-  for (let x = 4; x < W; x += 9) r("#3f8a5e", x, GROUND_Y - 2, 1, 2); // hojitas de pasto
-
-  // Árbol a la izquierda
-  r("#140c0c", 20, GROUND_Y - 46, 10, 46);
-  r("#4a3226", 22, GROUND_Y - 46, 6, 46);
-  for (const [cx, cy, rad] of [[25, 82, 22], [8, 92, 14], [44, 90, 15], [26, 66, 14]]) {
-    for (let dy = -rad; dy <= rad; dy++) {
-      const half = Math.floor(Math.sqrt(rad * rad - dy * dy));
-      r("#0f2a20", cx - half - 1, cy + dy, half * 2 + 2, 1);
-      r(dy < -rad / 3 ? "#1f4a35" : "#183b2b", cx - half, cy + dy, half * 2, 1);
+  // Piedritas del camino
+  for (let k = 0; k < 18; k++) r("#3a2f4a", (k * 67 + 9) % W, GROUND_Y + 9 + ((k * 23) % 22), 2, 1);
+  // Charcos (lo que reflejan se dibuja en drawPuddles)
+  for (const [cx, cy, w] of PUDDLES) {
+    for (let dy = -2; dy <= 2; dy++) {
+      const half = Math.round((w / 2) * Math.sqrt(1 - (dy / 3) ** 2));
+      r("#1b1830", cx - half - 1, cy + dy, half * 2 + 2, 1);
+      r("#232a4a", cx - half, cy + dy, half * 2, 1);
     }
   }
+
+  // Tronco del árbol a la izquierda (la copa se mece, ver drawNightTree)
+  r("#140c0c", 20, GROUND_Y - 46, 10, 46);
+  r("#4a3226", 22, GROUND_Y - 46, 6, 46);
+  r("#5e4232", 26, GROUND_Y - 46, 2, 46);
+  r("#140c0c", 16, GROUND_Y - 3, 18, 3);
   return c;
 })();
+
+// Copa del árbol: bloques que se mecen con el viento (más fuerte con la tormenta)
+const NIGHT_LEAVES = [[25, 82, 22], [8, 92, 14], [44, 90, 15], [26, 66, 14]];
+function drawNightTree() {
+  const gust = 0.8 + night.rain * 1.4;
+  const sway = (i) => Math.round(Math.sin(time * (1.1 + night.rain) + i * 1.3) * gust);
+  NIGHT_LEAVES.forEach(([cx, cy, rad], i) => pixelCircle(cx + sway(i), cy, rad + 1, "#0f2a20"));
+  NIGHT_LEAVES.forEach(([cx, cy, rad], i) => {
+    const x = cx + sway(i);
+    for (let dy = -rad; dy <= rad; dy++) {
+      const half = Math.floor(Math.sqrt(rad * rad - dy * dy));
+      rect(dy < -rad / 3 ? "#1f4a35" : "#183b2b", x - half, cy + dy, half * 2, 1);
+    }
+    // Luz de la luna sobre las hojas de arriba
+    ctx.globalAlpha = 0.5 * night.clear * (1 - night.dawn * 0.5);
+    rect("#3a6a50", x - Math.floor(rad / 2), cy - rad + 2, rad, 2);
+    ctx.globalAlpha = 1;
+  });
+}
+
+// Pasto que se mece
+function drawNightGrass() {
+  const gust = 1 + night.rain;
+  for (let x = 4; x < W; x += 9) {
+    const s = Math.round(Math.sin(time * (1.6 + night.rain) + x * 0.3) * gust * 0.8);
+    rect("#3f8a5e", x, GROUND_Y - 2, 1, 2);
+    rect("#4f9a6e", x + s, GROUND_Y - 4, 1, 2);
+  }
+}
+
+// Charcos: reflejan el farol, la luna y hacen ondas con la lluvia
+function drawPuddles() {
+  for (const [i, [cx, cy, w]] of PUDDLES.entries()) {
+    ctx.save();
+    ctx.beginPath();
+    ctx.ellipse(cx, cy, w / 2, 2.6, 0, 0, Math.PI * 2);
+    ctx.clip();
+    const lampA = (1 - night.dawn * 0.7) * 0.55;
+    const near = Math.max(0, 1 - Math.abs(cx - LAMP.x) / 120);
+    ctx.globalAlpha = lampA * (0.3 + near);
+    rect("#ffd27a", LAMP.x - 3 + (cx - LAMP.x) * 0.3, cy - 2, 6, 5);
+    ctx.globalAlpha = night.clear * 0.6 * (1 - night.dawn * 0.5);
+    rect("#fff3c4", MOON.x + (cx - MOON.x) * 0.2 - 2, cy - 1, 4, 2);
+    if (night.dawn > 0) { ctx.globalAlpha = night.dawn * 0.5; rect("#ffb08a", cx - w / 2, cy - 2, w, 2); }
+    ctx.globalAlpha = 0.4 + Math.sin(time * 2 + i) * 0.1;
+    rect("#4a5a8a", cx - w / 2 + 2, cy - 2, w - 6, 1);           // brillo de la superficie
+    // Ondas: con lluvia muchas, cuando escampa caen gotitas sueltas
+    const rate = 0.6 + night.rain * 2.5;
+    for (let k = 0; k < 3; k++) {
+      const t = (time * rate + k * 0.37 + i * 0.21) % 1;
+      if (night.rain < 0.05 && k > 0) break;
+      const rx = cx + ((((k * 13 + i * 7 + Math.floor(time * rate + k * 0.37)) * 17) % w) - w / 2) * 0.8;
+      ctx.globalAlpha = (1 - t) * 0.8;
+      ctx.strokeStyle = "#9fb8e8";
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.ellipse(Math.round(rx) + 0.5, cy + 0.5, 1 + t * 5, 0.5 + t * 1.2, 0, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+}
+
+// Ventanas de la ciudad que se prenden y se apagan, y antenas que parpadean
+function drawCityLife() {
+  for (const w of CITY_WINDOWS) {
+    const on = Math.sin(time * 0.15 + w.seed) > 0.2;
+    rect(on ? "#ffd27a" : "#14162e", w.x, w.y, 2, 2);
+    if (on && w.seed % 4 === 0) rect("#fff1b8", w.x, w.y, 1, 1);
+  }
+  for (const a of ANTENNAS) {
+    const on = Math.floor(time * 1.2 + a.phase * 0.5) % 2;
+    if (!on) continue;
+    ctx.globalAlpha = 0.3;
+    rect("#ff4d6d", a.x - 1, a.y - 1, 3, 3);
+    ctx.globalAlpha = 1;
+    rect("#ff4d6d", a.x, a.y, 1, 1);
+  }
+}
 
 // Estrellas que titilan (cada una a su ritmo)
 const nightStars = Array.from({ length: 46 }, (_, i) => ({
@@ -547,6 +1227,7 @@ function resetNight() {
   Object.assign(night, {
     rain: 1, clear: 0, glow: 0, fireflies: 0, dawn: 0, lit: 0,
     tears: false, aura: false, shoot: null, tearTimer: 0,
+    bolt: null, boltIn: 2.5,
   });
 }
 resetNight();
@@ -655,6 +1336,19 @@ function drawNight() {
     ctx.globalAlpha = 1;
   }
 
+  // Relámpago a lo lejos, detrás de las nubes
+  if (night.bolt) {
+    const b = night.bolt;
+    ctx.globalAlpha = b.t < 0.1 || (b.t > 0.18 && b.t < 0.26) ? 0.9 : Math.max(0, 0.5 - b.t);
+    let bx = b.x, by = 10;
+    for (let k = 0; k < 9; k++) {
+      const nx = bx + ((((b.seed + k) * 2654435761) >>> 0) % 9) - 4, ny = by + 8;
+      for (let j = 0; j < 8; j++) rect("#f4f0ff", Math.round(bx + ((nx - bx) * j) / 8), by + j, 1, 1);
+      bx = nx; by = ny;
+    }
+    ctx.globalAlpha = 1;
+  }
+
   // Nubes de lluvia que tapan la luna y luego se van a los lados
   const drift = Math.sin(time * 0.2) * 4;
   for (const [cx, cy, s, dir] of [[26, 20, 2, -1], [70, 36, 1, -1], [150, 14, 2, 1], [210, 34, 1, 1], [262, 18, 1, 1]]) {
@@ -663,7 +1357,21 @@ function drawNight() {
   }
   ctx.globalAlpha = 1;
 
+  // Al amanecer el sol se asoma detrás de la ciudad
+  if (dawn > 0) {
+    const sy = Math.round(GROUND_Y - 6 - dawn * 22);
+    ctx.globalAlpha = 0.25 * dawn;
+    pixelCircle(288, sy, 26, "#ffd08a");
+    ctx.globalAlpha = dawn;
+    pixelCircle(288, sy, 10, "#ffe6a8");
+    ctx.globalAlpha = 1;
+  }
+
   ctx.drawImage(nightLand, 0, 0);
+  drawCityLife();
+  drawPuddles();
+  drawNightTree();
+  drawNightGrass();
 
   // Farol: poste, lámpara y su luz (titila con la lluvia)
   const flick = night.rain > 0.3 && Math.sin(time * 23) > 0.85 ? 0.4 : 1;
@@ -684,6 +1392,27 @@ function drawNight() {
   rect("#140c0c", LAMP.x - 2, LAMP.top, 10, 8);
   rect(lampOn > 0.5 ? "#fff1b8" : "#b8a870", LAMP.x - 1, LAMP.top + 1, 8, 6);
   rect("#140c0c", LAMP.x - 3, LAMP.top - 2, 12, 2);
+  rect("#3a3f5e", LAMP.x - 2, LAMP.top - 2, 4, 1);
+  rect("#140c0c", LAMP.x + 2, LAMP.top + 1, 1, 6);                 // cristal en cuatro partes
+  // Polillas que revolotean alrededor de la luz cuando deja de llover
+  if (night.clear > 0.3) {
+    for (let k = 0; k < 3; k++) {
+      const a = time * (2.4 + k * 0.7) + k * 2;
+      ctx.globalAlpha = Math.min(1, (night.clear - 0.3) * 2) * lampOn;
+      rect("#e8e0c8", Math.round(LAMP.x + 3 + Math.cos(a) * (7 + k * 3)), Math.round(LAMP.top + 4 + Math.sin(a * 1.3) * (5 + k)), 1, 1);
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  // Sombra de la banca que proyecta el farol (hacia la izquierda)
+  const bx0 = BENCH_SPOT.x - 34;
+  ctx.globalAlpha = 0.28 * lampOn;
+  ctx.fillStyle = "#0a0a1e";
+  ctx.beginPath();
+  ctx.moveTo(bx0 - 2, GROUND_Y); ctx.lineTo(bx0 + 74, GROUND_Y);
+  ctx.lineTo(bx0 + 50, GROUND_Y + 9); ctx.lineTo(bx0 - 34, GROUND_Y + 9);
+  ctx.fill();
+  ctx.globalAlpha = 1;
 
   // Banca de madera (de frente), ella se sienta en la orilla derecha
   const bx = BENCH_SPOT.x - 34, bw = 72;
@@ -696,8 +1425,22 @@ function drawNight() {
   rect("#b07a4f", bx - 1, GROUND_Y - 7, bw + 2, 2);
   rect("#140c0c", bx + 2, GROUND_Y - 4, 3, 4);                    // patas
   rect("#140c0c", bx + bw - 5, GROUND_Y - 4, 3, 4);
+  rect("#5e3a28", bx + 1, GROUND_Y - 25, bw - 2, 1);              // vetas de la madera
+  rect("#5e3a28", bx + 1, GROUND_Y - 19, bw - 2, 1);
+  // Madera mojada: brilla con la luz del farol mientras llueve
+  ctx.globalAlpha = 0.5 * Math.max(night.rain, 0.2) * lampOn;
+  rect("#ffe2a8", bx + 30, GROUND_Y - 7, bw - 26, 1);
+  rect("#ffe2a8", bx + 40, GROUND_Y - 29, bw - 42, 1);
+  ctx.globalAlpha = 1;
 
+  // Ella se tiñe de azul con la noche, de naranja al amanecer, y el farol
+  // la ilumina por la derecha
+  setAmbient({
+    tint: dawn > 0.5 ? "#ff9a6a" : "#1a2466", tintA: dawn > 0.5 ? 0.14 * dawn : 0.3 * (1 - dawn * 2) + 0.05,
+    rim: "#ffd27a", rimA: 0.55 * lampOn, rimDx: 1,
+  });
   drawGirl();
+  setAmbient();
 
   // Luciérnagas
   if (night.fireflies > 0) {
@@ -713,10 +1456,24 @@ function drawNight() {
     ctx.globalAlpha = 1;
   }
 
+  // Pajaritos que salen con el amanecer
+  if (dawn > 0.3) {
+    for (let k = 0; k < 3; k++) {
+      const x = ((time * 24 + k * 22) % (W + 60)) - 30;
+      drawBird(x, 40 + k * 6 + Math.sin(time * 2 + k) * 3, Math.floor(time * 6 + k) % 2, "#5a3a6a");
+    }
+  }
+
   // Penumbra de la tormenta
   if (night.rain > 0) {
     ctx.globalAlpha = 0.28 * night.rain;
     rect("#0a0a1e", 0, 0, W, H);
+    ctx.globalAlpha = 1;
+  }
+  // Destello del relámpago sobre todo el paisaje
+  if (night.bolt && (night.bolt.t < 0.1 || (night.bolt.t > 0.18 && night.bolt.t < 0.26))) {
+    ctx.globalAlpha = 0.22;
+    rect("#dfe6ff", 0, 0, W, H);
     ctx.globalAlpha = 1;
   }
 }
@@ -725,7 +1482,22 @@ function updateNight(dt) {
   // Lluvia: más gotas mientras más fuerte
   if (Math.random() < night.rain * dt * 140) {
     for (let i = 0; i < 2; i++)
-      particles.push({ type: "rain", x: Math.random() * (W + 40) - 20, y: -6, vx: -30, vy: 210 + Math.random() * 40, life: 1.2 });
+      particles.push({ type: "rain", x: Math.random() * (W + 40) - 20, y: -6, vx: -30, vy: 210 + Math.random() * 40, life: 1.2, floor: GROUND_Y + Math.random() * 30 });
+  }
+  // Al tocar el piso la gota salpica
+  for (const p of particles) {
+    if (p.type !== "rain" || p.y < p.floor) continue;
+    p.life = 0;
+    if (Math.random() < 0.6)
+      for (let k = -1; k <= 1; k += 2)
+        particles.push({ type: "splash", x: p.x, y: p.floor, vx: k * (10 + Math.random() * 12), vy: -28 - Math.random() * 16, g: 260, life: 0.22 });
+  }
+  // Relámpagos mientras la tormenta está fuerte (el trueno llega un poquito después)
+  if (night.bolt && (night.bolt.t += dt) > 0.6) night.bolt = null;
+  if (night.rain > 0.6 && (night.boltIn -= dt) <= 0) {
+    night.boltIn = 6 + Math.random() * 6;
+    night.bolt = { x: 120 + Math.random() * 170, t: 0, seed: (Math.random() * 1000) | 0 };
+    setTimeout(() => scene === "night" && Sound.thunder(), 350);
   }
   // Lágrimas que resbalan de su ojo
   if (night.tears && girl.pose === "bench" && (night.tearTimer -= dt) <= 0) {
@@ -772,42 +1544,32 @@ const hallDoorBg = (() => {
   const g = c.getContext("2d");
   const r = (col, x, y, w, h) => { g.fillStyle = col; g.fillRect(Math.round(x), Math.round(y), Math.round(w), Math.round(h)); };
 
-  // Techo con lámparas, pared crema y zócalo
-  r("#fbf6ea", 0, 0, W, 16);
-  r("#e9dbbd", 0, 16, W, 2);
+  // Techo con lámparas, pared crema con lambrín y zócalo
+  r(CREAM, 0, 0, W, GROUND_Y);
+  paintWallDetails(r, g, GROUND_Y);
   for (let x = 20; x < W; x += 70) { r("#ffffff", x, 18, 30, 3); r("#fff4c4", x + 2, 21, 26, 1); }
-  r(CREAM, 0, 18, W, GROUND_Y - 18);
-  r("#e9dbbd", 0, GROUND_Y - 5, W, 5);
   // Piso blanco de mosaico
   r("#f7f7f4", 0, GROUND_Y, W, H - GROUND_Y);
   [GROUND_Y + 7, GROUND_Y + 16, GROUND_Y + 28].forEach((y) => r("#e2e2dc", 0, y, W, 1));
   for (let xb = -60; xb <= W + 60; xb += 24)
     for (let y = GROUND_Y; y < H; y++) r("#e2e2dc", W / 2 + (xb - W / 2) * (1 + (y - GROUND_Y) / 30), y, 1, 1);
+  paintLightPools(r, g, [35, 105, 245], GROUND_Y);
 
-  // Pizarrón de avisos con notitas
-  r("#140c0c", 52, 52, 58, 36);
-  r("#c9955b", 54, 54, 54, 32);
-  r("#ffe066", 58, 58, 12, 10); r("#ff8fb5", 74, 60, 12, 10);
-  r("#8ce99a", 90, 57, 12, 10); r("#7ec8e3", 64, 72, 12, 9); r("#ffffff", 82, 73, 14, 10);
+  // Pizarrón de avisos con notitas y un reloj encima
+  paintNoticeBoard(r, 52, 52);
+  paintClockFace(g, 81, 36);
   // Cuadro con un corazón
   r("#140c0c", 236, 46, 30, 26);
   r("#ffffff", 238, 48, 26, 22);
   [[244, 52, 4, 2], [252, 52, 4, 2], [243, 54, 14, 4], [245, 58, 10, 2], [247, 60, 6, 2], [249, 62, 2, 2]]
     .forEach(([x, y, w, h]) => r("#ff4d6d", x, y, w, h));
   // Garrafón de agua
-  r("#140c0c", 284, GROUND_Y - 34, 16, 34);
-  r("#ffffff", 285, GROUND_Y - 33, 14, 32);
-  r("#140c0c", 285, GROUND_Y - 53, 14, 19);
-  r("#9fd4ff", 286, GROUND_Y - 52, 12, 17);
-  r("#dff3ff", 287, GROUND_Y - 50, 2, 12);
-  r("#4a78c2", 287, GROUND_Y - 25, 3, 3);
-  // Maceta con planta junto a la puerta
+  paintCooler(r, 284, GROUND_Y);
+  // Maceta junto a la puerta (las hojas se mecen, ver drawDoorProps)
   r("#140c0c", 199, GROUND_Y - 15, 14, 15);
   r("#e8e8e4", 200, GROUND_Y - 14, 12, 14);
-  for (const [x, y, w, h] of [[201, GROUND_Y - 26, 4, 12], [205, GROUND_Y - 32, 3, 18], [208, GROUND_Y - 27, 4, 13]]) {
-    r("#1e5a3a", x - 1, y - 1, w + 2, h + 2);
-    r("#3a8f48", x, y, w, h);
-  }
+  r("#ffffff", 201, GROUND_Y - 14, 2, 13);
+  r("#c9c9d9", 209, GROUND_Y - 14, 3, 14);
 
   // Marco de la puerta y letrero
   const d = HALL_DOOR;
@@ -816,8 +1578,23 @@ const hallDoorBg = (() => {
   r("#140c0c", d.x - 1, d.top - 1, d.w + 2, GROUND_Y - d.top + 1);
   r("#140c0c", d.x + 1, d.top - 18, d.w - 2, 12);
   r("#4a5a7a", d.x + 2, d.top - 17, d.w - 4, 10);
+  r("#5a6a8a", d.x + 2, d.top - 17, d.w - 4, 1);
+  r("#e2d4b4", d.x - 4, GROUND_Y, d.w + 8, 1);
   return c;
 })();
+
+// Lo que se mueve en el pasillo de la sala
+function drawDoorProps() {
+  [20, 90, 160, 230].forEach((x, i) => ceilingLight(x, 30, 21, GROUND_Y + 20, i === 1 ? flicker(5) : i === 2 ? 0.6 : 1));
+  softShadow(206, GROUND_Y + 1, 20, 0.25);
+  drawPlant([[201, GROUND_Y - 26, 4, 12], [205, GROUND_Y - 32, 3, 18], [208, GROUND_Y - 27, 4, 13], [198, GROUND_Y - 20, 3, 6]], 1);
+  softShadow(292, GROUND_Y + 1, 22, 0.25);
+  coolerBubbles(288, GROUND_Y - 49, GROUND_Y - 35, 1.7);
+  flutterNote(74, 60, 12, 10, "#ff8fb5", 0.4);
+  flutterNote(82, 73, 14, 10, "#ffffff", 2.9);
+  clockHands(81, 36, 4);
+  drawMotes(12, 20, 30, 280, 110, 4);
+}
 
 // Salón de la fiesta: pared rosa, piso de madera, puerta abierta y banderines
 const FLOOR_Y = 118;
@@ -838,16 +1615,9 @@ const partyBg = (() => {
   r("#e9dbbd", 0, 6, W, 1);
   r("#e9dbbd", 0, FLOOR_Y - 5, W, 5);
 
-  // Ventanal con la ciudad (a la derecha)
+  // Ventanal (a la derecha): el cielo y las nubes se mueven, ver partyWindow
   r("#140c0c", 236, 22, 72, 56);
-  r("#bfe3f2", 237, 23, 70, 54);
-  [[240, 50, 10, 27], [252, 40, 12, 37], [266, 56, 9, 21], [277, 34, 13, 43], [292, 48, 12, 29]]
-    .forEach(([x, y, w, h]) => { r("#9fb8c8", x, y, w, h); for (let wy = y + 3; wy < y + h - 2; wy += 5) r("#dff3ff", x + 2, wy, w - 4, 1); });
-  g.globalAlpha = 0.5;
-  r("#ffffff", 242, 26, 1, 12); r("#ffffff", 245, 30, 1, 6);
-  g.globalAlpha = 1;
-  r(ALU, 236, 22, 72, 2); r(ALU, 236, 76, 72, 2);
-  [236, 260, 284, 306].forEach((x) => r(ALU_DARK, x, 22, 2, 56));
+  r("#e2d4b4", 236, 78, 72, 2);
 
   // Pizarrón blanco con dibujitos y un reloj
   r("#140c0c", 50, 58, 50, 36);
@@ -874,17 +1644,105 @@ const partyBg = (() => {
   r("#140c0c", 42, 46, 6, FLOOR_Y - 46);
   r("#f4f4f2", 43, 47, 4, FLOOR_Y - 48);
 
-  // Banderines de colores colgando de un cordón
-  for (let x = 0; x < W; x++) {
-    const y = 9 + Math.round(Math.sin(((x % 80) / 80) * Math.PI) * 8);
-    r("#7a4a5a", x, y, 1, 1);
-    if (x % 10 === 3) {
-      const col = FLAG_COLORS[(x / 10 | 0) % FLAG_COLORS.length];
-      for (let k = 0; k < 6; k++) r(col, x - 3 + k / 2, y + 1 + k, 7 - k, 1);
-    }
+  // Regalos recargados en la pared, bajo el pizarrón
+  for (const [x, y, w, h, col, ribbon] of [[56, 108, 16, 14, "#ff4d6d", "#ffe066"], [60, 100, 9, 8, "#8ce99a", "#ff4d6d"],
+    [74, 112, 12, 10, "#7ec8e3", "#ff8fb5"], [88, 114, 9, 8, "#cdb4db", "#ffffff"]]) {
+    r("#140c0c", x - 1, y - 1, w + 2, h + 1);
+    r(col, x, y, w, h);
+    r("#00000026", x + w - 3, y, 3, h);
+    r(ribbon, x + Math.floor(w / 2) - 1, y, 2, h);
+    r(ribbon, x, y + Math.floor(h / 2) - 1, w, 2);
+    r(ribbon, x + Math.floor(w / 2) - 3, y - 3, 2, 3); r(ribbon, x + Math.floor(w / 2) + 1, y - 3, 2, 3);
   }
   return c;
 })();
+
+// Ciudad del ventanal (va encima del cielo que se mueve)
+const partyWindow = (() => {
+  const c = document.createElement("canvas");
+  c.width = W; c.height = H;
+  const g = c.getContext("2d");
+  const r = (col, x, y, w, h) => { g.fillStyle = col; g.fillRect(Math.round(x), Math.round(y), Math.round(w), Math.round(h)); };
+  [[240, 50, 10, 27], [252, 40, 12, 37], [266, 56, 9, 21], [277, 34, 13, 43], [292, 48, 12, 29]]
+    .forEach(([x, y, w, h]) => {
+      r("#9fb8c8", x, y, w, h);
+      r("#b4cad8", x, y, 2, h);
+      for (let wy = y + 3; wy < y + h - 2; wy += 5) r("#dff3ff", x + 2, wy, w - 4, 1);
+    });
+  g.globalAlpha = 0.5;
+  r("#ffffff", 242, 26, 1, 12); r("#ffffff", 245, 30, 1, 6);
+  g.globalAlpha = 1;
+  r(ALU, 236, 22, 72, 2); r(ALU, 236, 76, 72, 2);
+  [236, 260, 284, 306].forEach((x) => r(ALU_DARK, x, 22, 2, 56));
+  return c;
+})();
+
+// Cielo del ventanal con nubes y un pajarito; la luz entra y pinta el piso
+function drawPartyWindow() {
+  rect("#bfe3f2", 237, 23, 70, 54);
+  rect("#d4eef8", 237, 23, 70, 10);
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(237, 23, 70, 54);
+  ctx.clip();
+  for (const [k, y] of [[0, 30], [1, 44], [2, 36]]) {
+    const x = 230 + ((time * (4 + k * 2) + k * 40) % 100);
+    rect("#ffffff", Math.round(x), y, 14, 3); rect("#ffffff", Math.round(x) + 3, y - 2, 7, 2);
+  }
+  drawBird(240 + ((time * 14) % 80), 32 + Math.sin(time * 2) * 2, Math.floor(time * 6) % 2, "#5a6a8a");
+  ctx.restore();
+  ctx.drawImage(partyWindow, 0, 0);
+  ctx.globalAlpha = 0.14 + Math.sin(time * 0.8) * 0.03;
+  ctx.fillStyle = "#fff6d8";
+  ctx.beginPath();
+  ctx.moveTo(238, FLOOR_Y + 2); ctx.lineTo(306, FLOOR_Y + 2); ctx.lineTo(290, FLOOR_Y + 30); ctx.lineTo(214, FLOOR_Y + 30);
+  ctx.fill();
+  ctx.globalAlpha = 1;
+}
+
+// Banderines que se mecen y una serie de foquitos que titilan
+function drawBunting() {
+  for (let x = 0; x < W; x++) {
+    const y = 23 + Math.round(Math.sin((((x + 30) % 106) / 106) * Math.PI) * 6);
+    rect("#5a3a4a", x, y, 1, 1);
+    if (x % 12 === 6) {
+      const k = (x / 12) | 0, on = (Math.floor(time * 3) + k) % 3;
+      const col = BANNER_COLORS[k % BANNER_COLORS.length];
+      ctx.globalAlpha = on ? 0.25 : 0.1;
+      pixelCircle(x, y + 3, 4, col);
+      ctx.globalAlpha = 1;
+      rect("#140c0c", x - 1, y + 1, 3, 4);
+      rect(on ? "#fff6d8" : col, x, y + 2, 1, 2);
+    }
+  }
+  for (let x = 0; x < W; x++) {
+    const seg = Math.floor(x / 80);
+    const y = 9 + Math.round(Math.sin(((x % 80) / 80) * Math.PI) * (8 + Math.sin(time * 1.3 + seg)));
+    rect("#7a4a5a", x, y, 1, 1);
+    if (x % 10 === 3) {
+      const col = FLAG_COLORS[(x / 10 | 0) % FLAG_COLORS.length];
+      const swing = Math.sin(time * 2.2 + x * 0.15) * 1.2;
+      for (let k = 0; k < 6; k++) rect(col, Math.round(x - 3 + k / 2 + (swing * k) / 6), y + 1 + k, 7 - k, 1);
+      rect("#ffffff", x - 2, y + 1, 1, 1);
+    }
+  }
+}
+
+// Luces de colores que barren la sala mientras festejan
+function drawPartyLights() {
+  if (party.mode !== "cheer") return;
+  ctx.save();
+  ctx.globalCompositeOperation = "lighter";
+  ["#ff4d6d", "#7ec8e3", "#ffe066"].forEach((col, i) => {
+    const a = time * (0.9 + i * 0.3) + i * 2.1;
+    const cx = 160 + Math.cos(a) * 120, cy = 80 + Math.sin(a * 1.4) * 40;
+    ctx.globalAlpha = 0.1;
+    pixelCircle(cx, cy, 20, col);
+    ctx.globalAlpha = 0.06;
+    pixelCircle(cx, cy, 28, col);
+  });
+  ctx.restore();
+}
 
 // Globos que flotan (los de la mesa van amarrados a sus esquinas)
 const BALLOONS = [
@@ -913,6 +1771,7 @@ function drawBalloon(b) {
 // Mesa con mantel, pastel, cupcakes, gaseosas, vasos y bocadillos
 function drawTable() {
   const { x, w, top } = PARTY_TABLE;
+  softShadow(x + w / 2, GROUND_Y - 3, w + 14, 0.3);
   rect("#140c0c", x + 6, top + 16, 4, GROUND_Y - 4 - top - 16);     // patas
   rect("#140c0c", x + w - 10, top + 16, 4, GROUND_Y - 4 - top - 16);
   rect("#140c0c", x - 3, top - 4, w + 6, 22);
@@ -939,11 +1798,24 @@ function drawTable() {
   }
   // Pastel con velitas que titilan
   drawSprite(Math.floor(time * 6) % 2 ? SPRITES.cake1 : SPRITES.cake2, PARTY_CAKE.x, PARTY_CAKE.y);
+  // Brillo cálido de las velitas, que titila con las llamas
+  const fl = 0.16 + Math.sin(time * 13) * 0.03 + Math.sin(time * 7.3) * 0.02 + party.dim * 0.1;
+  ctx.globalAlpha = fl;
+  pixelCircle(PARTY_CAKE.x + 16, PARTY_CAKE.y + 2, 16, "#ffd27a");
+  ctx.globalAlpha = fl * 1.4;
+  pixelCircle(PARTY_CAKE.x + 16, PARTY_CAKE.y + 2, 8, "#fff1b8");
+  ctx.globalAlpha = 1;
   // Vasos rojos
   for (const cx of [x + 72, x + 79]) {
     rect("#140c0c", cx - 1, top - 10, 7, 9);
     rect("#e5383b", cx, top - 9, 5, 7);
     rect("#ffffff", cx, top - 9, 5, 1);
+    rect("#ff8a8c", cx, top - 8, 1, 5);
+  }
+  // Burbujitas que suben en las gaseosas
+  for (let i = 0; i < 3; i++) {
+    const by = top - 4 - ((time * 8 + i * 3.3) % 10);
+    rect("#ffffff", x + 19 + i * 7 + (Math.floor(time * 5 + i) % 2), Math.round(by), 1, 1);
   }
   // Tazón de papitas y sándwiches
   rect("#140c0c", x + 86, top - 7, 17, 6);
@@ -964,7 +1836,7 @@ function drawPartyHat(cx, y, col) {
 // Coronita de la cumpleañera
 function drawCrown() {
   const bounce = girl.mood === "laugh" && girl.onGround ? laughBob(0.5) : 0;
-  const x = Math.round(girl.x) + 12, y = Math.round(girl.y) - 7 + bounce;
+  const x = Math.round(girl.x) + 12, y = Math.round(girl.y) - 7 + bounce - (girl.headLift || 0);
   rect("#140c0c", x - 1, y - 1, 16, 8);
   rect("#140c0c", x - 1, y - 4, 4, 4); rect("#140c0c", x + 5, y - 5, 4, 5); rect("#140c0c", x + 11, y - 4, 4, 4);
   rect("#ffd166", x, y, 14, 6);
@@ -999,7 +1871,7 @@ const party = {};
 function resetParty() {
   Object.assign(party, {
     door: 0, rays: 0, flash: 0, murmur: false, bump: 0, mode: "calm", shake: 0, dim: 0,
-    bigText: null, crown: false, highlight: false, joyTears: false, timer: 0,
+    bigText: null, crown: false, highlight: false, joyTears: false, timer: 0, settled: [],
   });
   crowd = [];
 }
@@ -1024,12 +1896,17 @@ function floatText(text, x, y, color = "#ffe066", life = 1.4) {
 
 function drawDoorScene() {
   ctx.drawImage(hallDoorBg, 0, 0);
+  drawDoorProps();
   const d = HALL_DOOR, h = GROUND_Y - d.top;
 
-  // Letrero de la sala
+  // Letrero de la sala (las letras brillan suave)
   ctx.font = "8px 'Press Start 2P', monospace";
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
+  ctx.globalAlpha = 0.35 + Math.sin(time * 2) * 0.15;
+  ctx.fillStyle = "#9fd4ff";
+  ctx.fillText("SALA", d.x + d.w / 2 + 1, d.top - 11);
+  ctx.globalAlpha = 1;
   ctx.fillStyle = "#ffffff";
   ctx.fillText("SALA", d.x + d.w / 2, d.top - 12);
 
@@ -1081,6 +1958,9 @@ function drawDoorScene() {
 
   // Luz por debajo de la puerta, con sombras de pies que pasan
   if (party.door === 0) {
+    ctx.globalAlpha = 0.25 + Math.sin(time * 3) * 0.08;          // la luz se derrama un poquito al piso
+    for (let k = 0; k < 4; k++) rect("#ffe9a0", d.x - k * 3, GROUND_Y + k, d.w + k * 6, 1);
+    ctx.globalAlpha = 1;
     rect("#ffe9a0", d.x, GROUND_Y - 1, d.w, 1);
     for (let k = 0; k < 2; k++) {
       const fx = d.x + Math.round(((time * (14 + k * 9) + k * 17) % (d.w + 10)) - 5);
@@ -1094,6 +1974,10 @@ function drawDoorScene() {
 
 function drawParty() {
   ctx.drawImage(partyBg, 0, 0);
+  drawPartyWindow();
+  drawBunting();
+  // Confeti que ya cayó al piso
+  for (const c of party.settled) rect(c.color, c.x, c.y, c.w, 1);
 
   // Letrero con letras de colores que van cambiando
   const lines = ["¡FELIZ CUMPLE", `${CONFIG.name.toUpperCase()}!`];
@@ -1113,6 +1997,8 @@ function drawParty() {
 
   BALLOONS.forEach(drawBalloon);
 
+  // Piso brillante; mientras festejan, las luces les dan contraluz
+  setAmbient({ reflect: 0.16, rim: party.mode === "cheer" ? "#fff2b0" : null, rimA: 0.4, rimDx: -1 });
   // Las de atrás quedan tapadas por la mesa
   const back = crowd.filter((f) => f.feet < GROUND_Y - 6);
   back.forEach(drawGuest);
@@ -1121,6 +2007,8 @@ function drawParty() {
   const people = [...crowd.filter((f) => !back.includes(f)).map((f) => ({ feet: f.feet, draw: () => drawGuest(f) })),
     { feet: girl.y + GIRL_H, draw: () => { drawGirl(); if (party.crown) drawCrown(); } }];
   people.sort((a, b) => a.feet - b.feet).forEach((p) => p.draw());
+  setAmbient();
+  drawPartyLights();
 
   // Baja la luz y un foco la ilumina solo a ella
   if (party.dim > 0) {
@@ -1221,6 +2109,16 @@ function updateParty(dt) {
   if (party.crown && Math.random() < dt * 4)
     particles.push({ type: "spark", x: girl.x + 12 + Math.random() * 14, y: girl.y - 8 + Math.random() * 6, vx: 0, vy: -6, life: 0.5 });
   if (party.bigText) party.bigText.t += dt;
+  // El confeti que cae se queda regado en el piso
+  for (const p of particles) {
+    if (p.type !== "confetti") continue;
+    p.floor ??= FLOOR_Y + 6 + Math.random() * (H - FLOOR_Y - 8);
+    if (p.vy > 0 && p.y >= p.floor) {
+      p.life = 0;
+      party.settled.push({ x: Math.round(p.x), y: Math.round(p.floor), w: Math.random() < 0.5 ? 1 : 2, color: p.color });
+    }
+  }
+  if (party.settled.length > 320) party.settled.splice(0, party.settled.length - 320);
 }
 
 // =====================================================
@@ -1301,6 +2199,7 @@ const girl = {
   bodyOffset: 0,      // sube (-1) o baja (+1) los hombros al suspirar
   sweat: null,        // { t } gota de sudor sobre la cabeza
   mood: null,         // null | chat | laugh | angry | smile (de lado)
+  headLift: 0,        // pixel que sube el torso al respirar (para la coronita)
 };
 
 const GRAVITY = 520;
@@ -1382,7 +2281,7 @@ function runFrameIndex() {
 }
 
 function girlFrame() {
-  if (girl.pose === "bench") return SPRITES.bench[girl.benchFace];
+  if (girl.pose === "bench") return girl.benchFace === "look" && blinking(0.3) ? SPRITES.bench.lookBlink : SPRITES.bench[girl.benchFace];
   if (girl.pose === "sit") {
     if (girl.sitAnim === "sigh" || girl.blinkTimer % 3 < 0.15) return SPRITES.sitSigh;
     return [SPRITES.sitA, SPRITES.sitB, SPRITES.sitC][typingPose()];
@@ -1390,6 +2289,7 @@ function girlFrame() {
   if (girl.reach) return door.carry && Math.floor(time * 6) % 2 ? SPRITES.reachB : SPRITES.reachA;
   if (girl.mood && girl.onGround && girl.targetX === null) {
     if (girl.mood === "chat" && talking(0.9)) return SPRITES.side.talk;
+    if (girl.mood === "chat" && blinking(0.2)) return SPRITES.side.blink;
     if (girl.mood === "angry" && Math.floor(time * 8) % 2) return SPRITES.side.angry2;
     return SPRITES.side[girl.mood];
   }
@@ -1423,12 +2323,11 @@ function typingPose() {
 
 function drawGirl() {
   if (girl.pose === "sit" || girl.pose === "bench") return drawSittingGirl();
-  // sombra (a la altura de sus pies; en el aire se queda en el piso)
+  // sombra (a la altura de sus pies; en el aire se queda en el piso y se encoge)
   const air = (GIRL_TOP - girl.y) / 60;
   const floorY = girl.onGround ? girl.y + GIRL_H : GROUND_Y;
-  ctx.fillStyle = "rgba(0,0,0,0.25)";
-  const sw = girl.onGround ? 24 : Math.max(10, 24 - air * 12);
-  ctx.fillRect(Math.round(girl.x + GIRL_HALF - sw / 2), Math.round(floorY) - 1, Math.round(sw), 2);
+  const sw = girl.onGround ? 26 : Math.max(10, 26 - air * 14);
+  softShadow(girl.x + GIRL_HALF, floorY, sw, girl.onGround ? 0.3 : Math.max(0.12, 0.3 - air * 0.15));
   // Al caminar el cuerpo rebota un poquito hacia arriba
   const stepping = girl.targetX !== null && runFrameIndex() % 2;
   let bounce = girl.onGround && stepping ? -SCALE : 0;
@@ -1436,8 +2335,14 @@ function drawGirl() {
 
   // Enojada: tiembla un poquito de coraje
   const shake = girl.mood === "angry" ? (Math.floor(time * 20) % 2) * 2 - 1 : 0;
+  // Parada y quieta respira (el torso sube un pixel)
+  const img = girlFrame();
+  const still = girl.onGround && girl.targetX === null && !girl.reach && girl.jumpDelay <= 0 && girl.landTimer <= 0;
+  const lift = still && girl.mood !== "laugh" && girl.mood !== "angry" ? breath(0.5) : 0;
+  girl.headLift = lift;
   // Siempre a escala entera para que los pixeles no se deformen
-  drawSprite(girlFrame(), girl.x + shake, girl.y + bounce, SCALE, girl.facing === -1);
+  drawLit(img, girl.x + shake, girl.y + bounce, girl.facing === -1, breathing(img, girl.mood ? 15 : 16, lift),
+    girl.onGround ? girl.y + GIRL_H : GROUND_Y);
   if (girl.mood === "angry") {
     // marca de enojo que late junto a su cabeza
     const beat = Math.floor(time * 5) % 2;
@@ -1450,9 +2355,10 @@ function drawGirl() {
 function drawSittingGirl() {
   const img = girlFrame();
   const x = Math.round(girl.x), y = Math.round(girl.y);
-  const w = img.width * SCALE, cut = 14; // fila donde empiezan las piernas
-  ctx.drawImage(img, 0, cut, img.width, img.height - cut, x, y + cut * SCALE, w, (img.height - cut) * SCALE);
-  ctx.drawImage(img, 0, 0, img.width, cut + 1, x, y + girl.bodyOffset * SCALE, w, (cut + 1) * SCALE);
+  const cut = 14; // fila donde empiezan las piernas
+  // Si no está suspirando, respira despacito
+  const off = girl.bodyOffset ? girl.bodyOffset * SCALE : -breath(1.1);
+  drawLit(img, x, y, false, [[cut, img.height - cut, 0], [0, cut + 1, off]]);
 
   if (girl.sweat) {
     // Aparece, resbala un poquito por la cabeza y al final se desvanece
@@ -1535,6 +2441,10 @@ function updateParticles(dt) {
     if (p.type === "heart") p.vy -= 10 * dt; // flotan hacia arriba
     if (p.type === "tear") p.vy += 90 * dt;  // las lágrimas caen
     if (p.g) p.vy += p.g * dt;               // confeti de los cañones: sube y cae
+    if (p.type === "leaf") {                 // las hojitas caen meciéndose y se quedan en el pasto
+      p.vx = 8 + Math.sin(time * 3 + p.phase) * 14;
+      if (p.y >= p.floor) { p.y = p.floor; p.vx = 0; p.vy = 0; } else p.vy = 12 + Math.cos(time * 3 + p.phase) * 6;
+    }
   }
   particles = particles.filter((p) => p.life > 0 && p.y < H + 10);
 }
@@ -1589,6 +2499,16 @@ function drawParticles() {
       ctx.fillStyle = "#9fd4ff";
       ctx.fillRect(Math.round(p.x), Math.round(p.y), 1, 2);
       ctx.fillStyle = "#ffffff";
+      ctx.fillRect(Math.round(p.x), Math.round(p.y), 1, 1);
+      ctx.globalAlpha = 1;
+    } else if (p.type === "leaf") {
+      ctx.globalAlpha = Math.min(1, p.life);
+      ctx.fillStyle = p.color;
+      ctx.fillRect(Math.round(p.x), Math.round(p.y), Math.sin(time * 6 + p.phase) > 0 || p.vy === 0 ? 2 : 1, 1);
+      ctx.globalAlpha = 1;
+    } else if (p.type === "splash") {
+      ctx.globalAlpha = 0.7;
+      ctx.fillStyle = "#9fb8e8";
       ctx.fillRect(Math.round(p.x), Math.round(p.y), 1, 1);
       ctx.globalAlpha = 1;
     } else if (p.type === "dust") {
@@ -2059,11 +2979,15 @@ let last = performance.now();
 let confettiTimer = 0;
 let lastTypingPose = 0;
 let time = 0;
+let sceneT = 0;          // segundos desde que empezó la escena actual
+let lastScene = scene;
 
 function loop(now) {
   const dt = Math.min(0.05, (now - last) / 1000);
   last = now;
   time += dt;
+  sceneT += dt;
+  if (scene !== lastScene) { lastScene = scene; sceneT = 0; }
 
   // En el final: confeti, saltitos y corazones
   if (state === "finale") {
@@ -2076,7 +3000,7 @@ function loop(now) {
   updateGirl(dt);
   updateParticles(dt);
   updateCurtain(dt);
-  for (const c of clouds) { c.x += c.s * 60 * dt; if (c.x > W) c.x = -30; }
+  if (scene === "outdoor") updateOutdoor(dt);
   if (girl.sweat) {
     girl.sweat.t += dt;
     if (girl.sweat.fade !== null && (girl.sweat.fade += dt) >= 0.4) girl.sweat = null;
@@ -2108,22 +3032,33 @@ function loop(now) {
   if (scene === "party") {
     drawParty();
   } else if (scene === "door") {
+    setAmbient({ reflect: 0.16, rim: "#fff2b0", rimA: Math.min(0.8, party.door + party.rays * 0.5), rimDx: 1 });
     drawDoorScene();
+    setAmbient();
   } else if (scene === "hallway") {
     ctx.drawImage(hallwayBg, 0, 0);
+    drawHallwayBack();
+    setAmbient({ reflect: 0.18, rim: "#fffbe8", rimA: 0.3, rimDx: 0 });
     drawGroup();
+    setAmbient();
+    drawHallwayLight();
   } else if (scene === "night") {
     drawNight();
   } else if (scene === "office") {
     ctx.drawImage(officeBg, 0, 0);
+    drawOfficeBack();
     // Mientras está del otro lado del vidrio, el vidrio y la hoja van encima de ella
+    setAmbient({ reflect: girl.behindDoor ? 0 : 0.14, tint: girl.behindDoor ? "#bfe3f2" : null, tintA: 0.25 });
     if (girl.behindDoor) { drawGirl(); drawLeftGlass(); drawDoors(); drawChair(); }
     else { drawLeftGlass(); drawDoors(); drawChair(); drawGirl(); }
+    setAmbient();
     drawDesk();
+    drawOfficePlant();
+    drawOfficeLight();
   } else {
-    ctx.drawImage(background, 0, 0);
-    clouds.forEach((c) => drawCloud(Math.round(c.x), c.y));
-    drawGirl();
+    setAmbient({ rim: "#ffd9a0", rimA: 0.45, rimDx: 1, tint: "#ff9a6a", tintA: 0.06 });
+    drawOutdoor();
+    setAmbient();
   }
   drawParticles();
   ctx.restore();

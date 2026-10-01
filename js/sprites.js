@@ -314,6 +314,9 @@ const GLASSES_FACE = ["SggSggSX", "gWEglEgX", "glEglEgX", "SggSggCX", "KSSSSMX."
 const GLASSES_TALK = ["SggSggSX", "gWEglEgX", "glEglEgX", "SggSggCX", "KSSSMMX."];
 const GLASSES_LAUGH = ["SggSggSX", "glEglEgX", "gElgElgX", "SggSggCX", "KSSMWMX."];
 
+// Parpadeo de perfil: los ojos de la fila 5 se cierran (con lentes queda el cristal)
+const blinkSide = (rows, lid = "S") => rows.map((row, i) => (i === 5 ? row.slice(0, 10) + row.slice(10).replace(/E/g, lid) : row));
+
 // Milagros de lado, parada
 const MILI_SIDE_TOP = [
   "...XKKKKKXTTTNTX..",
@@ -394,6 +397,9 @@ const HAIR_BACK = {
 // Torso (columnas 9-17): brazo colgando, o mano en la panza al reírse
 const TORSO = ["XTTTTTX..", "XTTtTTX..", "XTTtTTX..", "XTTSTTX.."];
 const TORSO_LAUGH = ["XTTTTTX..", "XTTtTTX..", "XTTtSTX..", "XTTTTTX.."];
+// Platicando con las manos: la mano se estira al frente y luego sube un poquito
+const TORSO_GESTURE = ["XTTTTTXX.", "XTTttttSX", "XTTTTTXX.", "XTTTTTX.."];
+const TORSO_GESTURE_UP = ["XTTTTtXSX", "XTTTttXX.", "XTTTTTX..", "XTTTTTX.."];
 const OUTFIT = {
   jeans: [".........XbbbbbX..", ...STAND_LEGS],
   dress: [
@@ -453,11 +459,13 @@ const FRIENDS = {
     colors: { K: "#5a3a30", k: "#7a5040", S: "#e0a980", s: "#c08660", C: "#e8907a", T: "#9b5de5", t: "#7a40c0" } },
 };
 
+// laugh: true (mano en la panza), o el torso que se quiera usar
 function friendRows(f, face, faceFrom, laugh) {
   let head = { pony: PONY_HEAD, shortPony: SHORT_PONY_HEAD }[f.head] || SIDE_HEAD;
   if (f.glasses) head = head.map((row, i) => (i === 5 ? row.slice(0, 8) + "gg" + row.slice(10) : row));
   head = sideFace(head, face, faceFrom);
-  const torso = (laugh ? TORSO_LAUGH : TORSO).map((t, i) => HAIR_BACK[f.head][i] + t);
+  const torsoRows = laugh === true ? TORSO_LAUGH : laugh || TORSO;
+  const torso = torsoRows.map((t, i) => HAIR_BACK[f.head][i] + t);
   return [...head, ...torso, ...OUTFIT[f.outfit]];
 }
 
@@ -526,10 +534,12 @@ const SPRITES = {
     angry: buildSprite(sideFace([...SIDE_HEAD, ...MILI_SIDE_ANGRY_TOP, ...STAND_LEGS], ANGRY_FACE, 4)),
     angry2: buildSprite(sideFace([...SIDE_HEAD, ...MILI_SIDE_ANGRY_TOP2, ...STAND_LEGS], ANGRY_FACE, 4)),
     smile: buildSprite(sideFace(MILI_SIDE, SMILE_FACE, 5)),
+    blink: buildSprite(blinkSide(MILI_SIDE)),
   },
   bench: {
     sad: buildSprite(sideFace(MILI_BENCH, SAD_FACE, 4)),
     look: buildSprite(sideFace(MILI_BENCH, LOOK_UP_FACE, 4)),
+    lookBlink: buildSprite(sideFace(MILI_BENCH, ["SSSSSSSX", ...LOOK_UP_FACE.slice(1)], 4)),
     smile: buildSprite(sideFace(MILI_BENCH, SMILE_FACE, 5)),
   },
   emojiLaugh: buildSprite(EMOJI_LAUGH),
@@ -539,14 +549,20 @@ const SPRITES = {
   heart: buildSprite(HEART),
 };
 
-// Sprites de cada amiga: platicando (boca cerrada / abierta) y riéndose
+// Sprites de cada amiga: platicando (boca cerrada / abierta, con o sin
+// manos), parpadeando y riéndose
 SPRITES.friends = {};
 for (const [key, f] of Object.entries(FRIENDS)) {
   const palette = { ...PALETTE, ...f.colors };
   const g = f.glasses;
+  const talkFace = g ? GLASSES_TALK : TALK_FACE, talkFrom = g ? 4 : 8;
+  const chatRows = friendRows(f, g ? GLASSES_FACE : [], 4, false);
   SPRITES.friends[key] = {
-    chat: buildSprite(friendRows(f, g ? GLASSES_FACE : [], 4, false), palette),
-    talk: buildSprite(friendRows(f, g ? GLASSES_TALK : TALK_FACE, g ? 4 : 8, false), palette),
+    chat: buildSprite(chatRows, palette),
+    blink: buildSprite(blinkSide(chatRows, g ? "l" : "S"), palette),
+    talk: buildSprite(friendRows(f, talkFace, talkFrom, false), palette),
+    gesture: buildSprite(friendRows(f, talkFace, talkFrom, TORSO_GESTURE), palette),
+    gestureUp: buildSprite(friendRows(f, g ? GLASSES_FACE : [], 4, TORSO_GESTURE_UP), palette),
     laugh: buildSprite(friendRows(f, g ? GLASSES_LAUGH : LAUGH_FACE, g ? 4 : 5, true), palette),
   };
 }

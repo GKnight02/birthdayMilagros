@@ -375,6 +375,27 @@ const Sound = (() => {
     return buf;
   }
 
+  // Trueno lejano: ruido grave que retumba y se apaga despacio
+  function thunder() {
+    if (!ctx) return;
+    const t = ctx.currentTime;
+    const src = ctx.createBufferSource();
+    const lp = ctx.createBiquadFilter();
+    const g = ctx.createGain();
+    src.buffer = noiseBuffer(3);
+    lp.type = "lowpass";
+    lp.frequency.setValueAtTime(380, t);
+    lp.frequency.exponentialRampToValueAtTime(90, t + 2.6);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.linearRampToValueAtTime(0.09, t + 0.12);
+    g.gain.linearRampToValueAtTime(0.05, t + 0.5);
+    g.gain.linearRampToValueAtTime(0.07, t + 0.8);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 2.8);
+    src.connect(lp).connect(g).connect(ctx.destination);
+    src.start(t);
+    src.stop(t + 3);
+  }
+
   // Murmullo detrás de la puerta: sílabas graves y apagadas, como voces bajitas
   function murmur() {
     if (!ctx) return;
@@ -474,5 +495,5 @@ const Sound = (() => {
   }
 
   return { init, jump, blip, select, step, sigh, curtain, door, key, playMusic, stopMusic,
-    rain, twinkle, shootingStar, reveal, pop, cheer, fanfare, murmur };
+    rain, twinkle, shootingStar, reveal, pop, cheer, fanfare, murmur, thunder };
 })();
