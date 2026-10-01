@@ -42,20 +42,109 @@ html, body {
   text-align: center;
 }
 
+/* Pantalla de inicio */
+.title-wrap { margin-top: -6cqw; }
+
 .title {
-  font-size: 3.6cqw;
+  font-size: 3.8cqw;
   line-height: 1.5;
   color: #ffe066;
-  text-shadow: 0.4cqw 0.4cqw 0 #140c0c;
-  margin-top: -6cqw;
+  text-shadow:
+    0.3cqw 0.3cqw 0 #e84a7f,
+    0.6cqw 0.6cqw 0 #140c0c,
+    0 0 1.6cqw rgba(255, 200, 120, 0.35);
+}
+/* Cada letra cae con rebote, luego ondea y de vez en cuando le pasa un destello */
+.title .ch {
+  display: inline-block;
+  animation:
+    title-drop 0.7s cubic-bezier(0.3, 1.6, 0.5, 1) calc(0.25s + var(--i) * 0.05s) both,
+    title-wave 2.4s ease-in-out calc(var(--i) * -0.12s) infinite,
+    title-shine 4s steps(1) calc(1.2s + var(--i) * 0.06s) infinite;
+}
+
+.title-deco {
+  display: flex;
+  justify-content: center;
+  gap: 2.4cqw;
+  margin-bottom: 1.4cqw;
+  font-size: 1.8cqw;
+  color: #ffe066;
+  text-shadow: 0.2cqw 0.2cqw 0 #140c0c;
+  animation: fade-in 0.6s ease-out 1s both;
+}
+.title-deco span { display: inline-block; animation: twinkle 1.6s ease-in-out infinite; }
+.title-deco span:nth-child(2) { color: #ff8fb5; animation: heart-beat 1.2s ease-in-out infinite; }
+.title-deco span:nth-child(3) { animation-delay: 0.8s; }
+
+#start-btn {
+  position: relative;
+  overflow: hidden;
+  animation: fade-in 0.5s ease-out 1.1s both, btn-breathe 1.4s ease-in-out 1.6s infinite;
+}
+/* Destello que cruza el botón */
+#start-btn::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -40%;
+  width: 25%;
+  background: rgba(255, 255, 255, 0.45);
+  transform: skewX(-20deg);
+  animation: btn-shine 2.8s ease-in-out 2s infinite;
 }
 
 .hint {
   font-size: 1.3cqw;
   color: #fff;
   opacity: 0.8;
-  animation: blink 1s steps(1) infinite;
+  text-shadow: 0.2cqw 0.2cqw 0 #000;
+  animation: fade-in 0.5s ease-out 1.3s both, blink 1s steps(1) 1.8s infinite;
 }
+
+/* Al presionar START todo sale volando antes de abrir el telón */
+#title-screen.leaving .title .ch {
+  animation: title-out 0.45s ease-in calc(var(--i) * 0.02s) forwards;
+}
+#title-screen.leaving .title-deco,
+#title-screen.leaving .hint { animation: fade-out 0.3s ease-in forwards; }
+#title-screen.leaving #start-btn { animation: btn-out 0.35s ease-in forwards; }
+
+@keyframes title-drop {
+  from { opacity: 0; transform: translateY(-8cqw) rotate(-15deg); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes title-wave {
+  0%, 100% { translate: 0 0; }
+  50% { translate: 0 -0.5cqw; }
+}
+@keyframes title-shine {
+  0%, 6% { color: #fff8d6; }
+  3% { color: #ffffff; }
+  7%, 100% { color: #ffe066; }
+}
+@keyframes title-out {
+  to { opacity: 0; transform: translateY(-6cqw) scale(0.4) rotate(20deg); }
+}
+@keyframes twinkle {
+  0%, 100% { transform: scale(1) rotate(0deg); opacity: 1; }
+  50% { transform: scale(0.6) rotate(45deg); opacity: 0.5; }
+}
+@keyframes btn-breathe {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.07); }
+}
+@keyframes btn-shine {
+  0% { left: -40%; }
+  40%, 100% { left: 130%; }
+}
+@keyframes btn-out {
+  30% { transform: scale(1.15); }
+  to { transform: scale(0); opacity: 0; }
+}
+@keyframes fade-in { from { opacity: 0; } }
+@keyframes fade-out { to { opacity: 0; } }
 
 /* Botón pixel */
 .pixel-btn {
@@ -79,27 +168,124 @@ html, body {
 
 /* Diálogo estilo RPG */
 .dialog {
+  --frame: #ff8fb5;
+  --frame-dark: #b83266;
+  --bg-top: #2a1838;
+  --bg-bottom: #160f24;
+  --accent: #ffe066;
   position: absolute;
   left: 4%;
   right: 4%;
   top: 4%;
   min-height: 16%;
-  padding: 2cqw 2.4cqw;
-  background: #1a1a2e;
-  border: 0.5cqw solid #fff;
-  outline: 0.5cqw solid #000;
+  padding: 2.2cqw 3cqw 2.4cqw;
+  background:
+    repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.025) 0 0.25cqw, transparent 0.25cqw 0.5cqw),
+    linear-gradient(180deg, var(--bg-top), var(--bg-bottom));
+  /* Marco pixel con esquinas recortadas */
+  box-shadow:
+    0 -0.5cqw 0 0 var(--frame), 0 0.5cqw 0 0 var(--frame),
+    -0.5cqw 0 0 0 var(--frame), 0.5cqw 0 0 0 var(--frame),
+    0 -1cqw 0 0 #000, 0 1cqw 0 0 #000,
+    -1cqw 0 0 0 #000, 1cqw 0 0 0 #000,
+    inset 0 0 0 0.3cqw var(--frame-dark),
+    0 1.6cqw 0 0 rgba(0, 0, 0, 0.35);
   font-size: 1.8cqw;
-  line-height: 1.7;
+  line-height: 1.8;
+  color: #fff;
+  text-shadow: 0.2cqw 0.2cqw 0 #000;
+  animation: dialog-in 0.28s steps(4) both, dialog-float 3.2s ease-in-out 0.3s infinite;
 }
+
+/* Corazoncitos en las esquinas */
+.dialog::before,
+.dialog::after {
+  content: "♥";
+  position: absolute;
+  top: -1.5cqw;
+  font-size: 1.6cqw;
+  line-height: 1;
+  color: var(--accent);
+  text-shadow: 0.2cqw 0.2cqw 0 #000;
+  animation: heart-beat 1.2s ease-in-out infinite;
+}
+.dialog::before { left: -1.4cqw; }
+.dialog::after { right: -1.4cqw; animation-delay: 0.6s; }
+
+/* La noche (escena triste) tiñe la caja de azul */
+.dialog[data-scene="night"] {
+  --frame: #8fb4ff;
+  --frame-dark: #3d5a9e;
+  --bg-top: #18213a;
+  --bg-bottom: #0d1222;
+  --accent: #cfe0ff;
+}
+
+/* Cada palabra no se corta entre líneas; cada letra aparece con un saltito */
+#dialog-text .word { display: inline-block; white-space: nowrap; }
+#dialog-text .ch {
+  display: inline-block;
+  opacity: 0;
+  transform: translateY(0.6cqw) scale(0.6);
+}
+#dialog-text .ch.on {
+  animation: letter-pop 0.18s ease-out forwards;
+}
+/* El nombre brilla en dorado y ondea */
+#dialog-text .hl {
+  color: var(--accent);
+  text-shadow: 0.2cqw 0.2cqw 0 var(--frame-dark), 0 0 0.8cqw rgba(255, 224, 102, 0.45);
+}
+#dialog-text .hl.on {
+  animation: letter-pop 0.18s ease-out forwards, letter-wave 1.4s ease-in-out infinite;
+  animation-delay: 0s, calc(var(--i) * -0.1s);
+}
+
 .dialog-next {
   position: absolute;
-  right: 1.5cqw;
-  bottom: 0.8cqw;
-  font-size: 1.4cqw;
-  animation: blink 0.6s steps(1) infinite;
+  right: 1.6cqw;
+  bottom: 0.6cqw;
+  font-size: 1.3cqw;
+  color: var(--accent);
   visibility: hidden;
 }
-.dialog-next.show { visibility: visible; }
+.dialog-next.show {
+  visibility: visible;
+  animation: next-bounce 0.7s steps(2) infinite;
+}
+
+@keyframes dialog-in {
+  from { opacity: 0; transform: translateY(-1.5cqw) scaleY(0.4); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes dialog-float {
+  0%, 100% { translate: 0 0; }
+  50% { translate: 0 0.3cqw; }
+}
+@keyframes heart-beat {
+  0%, 100% { transform: scale(1); }
+  20% { transform: scale(1.35); }
+  40% { transform: scale(0.95); }
+}
+@keyframes letter-pop {
+  0% { opacity: 0; transform: translateY(0.6cqw) scale(0.6); }
+  70% { opacity: 1; transform: translateY(-0.25cqw) scale(1.1); }
+  100% { opacity: 1; transform: none; }
+}
+@keyframes letter-wave {
+  0%, 100% { translate: 0 0; }
+  50% { translate: 0 -0.35cqw; }
+}
+@keyframes next-bounce {
+  0% { transform: translateY(0); }
+  50% { transform: translateY(0.4cqw); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dialog, .dialog::before, .dialog::after, .dialog-next.show, #dialog-text .hl.on { animation: none; }
+  #dialog-text .ch.on { animation: none; opacity: 1; transform: none; }
+  .title .ch, .title-deco span, #start-btn, #start-btn::after { animation: none; }
+}
 
 /* Final */
 #finale { justify-content: flex-start; padding-top: 5%; gap: 2cqw; pointer-events: none; }

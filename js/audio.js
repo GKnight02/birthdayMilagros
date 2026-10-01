@@ -59,6 +59,7 @@ const Sound = (() => {
   }
   const sigh = () => sweep(520, 180, 0.7, "triangle", 0.07);
   const curtain = () => sweep(220, 90, 0.9, "triangle", 0.05);
+  const thump = () => { sweep(120, 45, 0.25, "sine", 0.12); tone(70, 0.08, "triangle", 0.06); };
   const door = () => sweep(300, 200, 0.6, "sine", 0.03);
   const key = () => tone(1400 + Math.random() * 400, 0.015, "square", 0.012);
 
@@ -494,6 +495,6 @@ const Sound = (() => {
     return 2;
   }
 
-  return { init, jump, blip, select, step, sigh, curtain, door, key, playMusic, stopMusic,
+  return { init, jump, blip, select, step, sigh, curtain, thump, door, key, playMusic, stopMusic,
     rain, twinkle, shootingStar, reveal, pop, cheer, fanfare, murmur, thunder };
 })();

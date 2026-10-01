@@ -2127,9 +2127,17 @@ function updateParty(dt) {
 // =====================================================
 //  TELÓN DE TEATRO
 // =====================================================
-const curtain = { open: 0, from: 0, to: 0, t: 0, dur: 1, done: null };
+const curtain = {
+  open: 0, from: 0, to: 0, t: 0, dur: 1, done: null,
+  vel: 0,      // qué tan rápido se mueve (la tela de abajo se queda atrás)
+  thud: 0,     // golpe al cerrarse: hace temblar la tela y la cenefa
+  puffs: [],   // polvito que se levanta al juntarse
+};
 const CURTAIN_SHADES = ["#4a0b18", "#6e1226", "#931a33", "#b3243e", "#c93a52", "#b3243e", "#931a33", "#6e1226"];
 const VALANCE_H = 16;
+const CURTAIN_BAND = 4; // alto de cada franja con la que se dibuja la tela ondulada
+const GOLD = "#e0b040", GOLD_LIGHT = "#ffe08a", GOLD_DARK = "#8a5a18";
+const TIEBACK_Y = 96;
 
 // Abre (1) o cierra (0) el telón; se resuelve al terminar
 function moveCurtain(to, dur = 1.4) {
@@ -2139,40 +2147,188 @@ function moveCurtain(to, dur = 1.4) {
   });
 }
 const openCurtain = () => moveCurtain(1);
-const closeCurtain = () => moveCurtain(0);
+const closeCurtain = () => moveCurtain(0, 1.2);
 
 function updateCurtain(dt) {
-  if (!curtain.done) return;
-  curtain.t += dt;
-  const p = Math.min(1, curtain.t / curtain.dur);
-  const e = p < 0.5 ? 2 * p * p : 1 - (-2 * p + 2) ** 2 / 2; // suave al inicio y al final
-  curtain.open = curtain.from + (curtain.to - curtain.from) * e;
-  if (p >= 1) { const cb = curtain.done; curtain.done = null; cb(); }
+  curtain.thud = Math.max(0, curtain.thud - dt * 1.6);
+  for (const p of curtain.puffs) {
+    p.x += p.vx * dt; p.y += p.vy * dt;
+    p.vx *= 0.94; p.vy -= 6 * dt;
+    p.life -= dt;
+  }
+  curtain.puffs = curtain.puffs.filter((p) => p.life > 0);
+
+  const prev = curtain.open;
+  if (curtain.done) {
+    curtain.t += dt;
+    const p = Math.min(1, curtain.t / curtain.dur);
+    // Al abrir se recoge con un pequeño rebote; al cerrar acelera hasta juntarse
+    const e = curtain.to > curtain.from
+      ? 1 + 2.2 * (p - 1) ** 3 + 1.2 * (p - 1) ** 2
+      : p < 0.5 ? 2 * p * p : 1 - (-2 * p + 2) ** 2 / 2;
+    curtain.open = curtain.from + (curtain.to - curtain.from) * e;
+    if (p >= 1) {
+      curtain.open = curtain.to;
+      if (curtain.to === 0) curtainThud();
+      const cb = curtain.done; curtain.done = null; cb();
+    }
+  }
+  // La velocidad se suaviza para que la tela "alcance" a la barra poco a poco
+  const v = dt > 0 ? (curtain.open - prev) / dt : 0;
+  curtain.vel += (v - curtain.vel) * Math.min(1, dt * 6);
+}
+
+// Las dos mitades chocan en el centro: tiembla la tela y se levanta polvito
+function curtainThud() {
+  curtain.thud = 1;
+  Sound.thump();
+  for (let k = 0; k < 16; k++) {
+    const side = k % 2 ? 1 : -1;
+    curtain.puffs.push({
+      x: W / 2 + side * Math.random() * 6, y: H - 2 - Math.random() * 4,
+      vx: side * (20 + Math.random() * 40), vy: -6 - Math.random() * 14,
+      life: 0.6 + Math.random() * 0.5, size: Math.random() < 0.4 ? 2 : 1,
+    });
+  }
+}
+
+// El vaivén de la tela se apaga conforme se abre: recogida a los lados queda quieta
+const curtainSway = () => Math.min(1, Math.max(0, 1 - curtain.open));
+
+// Hasta dónde llega cada mitad del telón a la altura y
+function curtainEdge(cw, y) {
+  const depth = (y / H) ** 2;
+  const lag = curtain.vel * 34 * depth;                         // abajo se queda atrás
+  const sway = Math.sin(time * 1.6 + y / 16) * (0.6 + depth) * curtainSway(); // vaivén de la tela
+  const thud = Math.sin(curtain.thud * 18 + y / 10) * curtain.thud * 3 * depth;
+  const e = Math.max(0, Math.min(W / 2 + 2, Math.round(cw + lag + sway + thud)));
+  return cw >= W / 2 - 0.5 ? Math.max(e, W / 2) : e; // cerrado, las mitades nunca dejan rendija
 }
 
 function drawCurtain() {
   const minW = 14; // lo que queda recogido a cada lado cuando está abierto
-  const cw = Math.round(minW + (W / 2 - minW) * (1 - curtain.open));
-  for (let lx = 0; lx < cw; lx++) {
-    // Los pliegues se comprimen conforme el telón se recoge
-    const phase = ((lx / cw) * 7) % 1;
-    ctx.fillStyle = CURTAIN_SHADES[Math.floor(phase * CURTAIN_SHADES.length)];
-    ctx.fillRect(lx, 0, 1, H);
-    ctx.fillRect(W - 1 - lx, 0, 1, H);
-  }
-  // Orilla dorada en el borde que se mueve
-  if (cw < W / 2) {
-    rect("#140c0c", cw, 0, 1, H); rect("#140c0c", W - 1 - cw, 0, 1, H);
-  }
-  rect("#e0b040", cw - 2, 0, 2, H); rect("#e0b040", W - cw, 0, 2, H);
+  const cw = minW + (W / 2 - minW) * (1 - curtain.open);
 
-  // Cenefa de arriba con ondas
+  for (let y = 0; y < H; y += CURTAIN_BAND) {
+    const e = curtainEdge(cw, y);
+    if (e <= 0) continue;
+    // Los pliegues se comprimen al recogerse y ondean con el tiempo
+    const ripple = Math.sin(time * 1.3 + y / 28) * 0.12 * curtainSway() + curtain.thud * Math.sin(y / 6) * 0.2;
+    let runStart = 0, runShade = -1;
+    for (let lx = 0; lx <= e; lx++) {
+      let shade = -1;
+      if (lx < e) {
+        const phase = ((((lx / e) * 7 + ripple) % 1) + 1) % 1;
+        shade = Math.floor(phase * CURTAIN_SHADES.length);
+      }
+      if (shade === runShade) continue;
+      if (runShade >= 0) {
+        const w = lx - runStart;
+        ctx.fillStyle = CURTAIN_SHADES[runShade];
+        ctx.fillRect(runStart, y, w, CURTAIN_BAND);
+        ctx.fillRect(W - runStart - w, y, w, CURTAIN_BAND);
+      }
+      runStart = lx; runShade = shade;
+    }
+    // Sombra arriba (bajo la cenefa) y abajo (cerca del piso)
+    const shadow = y < 40 ? (40 - y) / 40 * 0.35 : y > H - 30 ? (y - (H - 30)) / 30 * 0.3 : 0;
+    if (shadow > 0) {
+      ctx.globalAlpha = shadow;
+      rect("#140c0c", 0, y, e, CURTAIN_BAND); rect("#140c0c", W - e, y, e, CURTAIN_BAND);
+      ctx.globalAlpha = 1;
+    }
+    // Orilla dorada que sigue la ondulación
+    if (e < W / 2) { rect("#140c0c", e, y, 1, CURTAIN_BAND); rect("#140c0c", W - 1 - e, y, 1, CURTAIN_BAND); }
+    rect(GOLD, e - 2, y, 2, CURTAIN_BAND); rect(GOLD, W - e, y, 2, CURTAIN_BAND);
+    rect(GOLD_LIGHT, e - 2, y, 1, CURTAIN_BAND); rect(GOLD_LIGHT, W - e + 1, y, 1, CURTAIN_BAND);
+  }
+
+  // Dobladillo dorado con flecos al ras del piso
+  const hemE = curtainEdge(cw, H - 1);
+  rect(GOLD_DARK, 0, H - 5, hemE, 1); rect(GOLD_DARK, W - hemE, H - 5, hemE, 1);
+  rect(GOLD, 0, H - 4, hemE, 2); rect(GOLD, W - hemE, H - 4, hemE, 2);
+  for (let x = 1; x < hemE; x += 2) { rect(GOLD_DARK, x, H - 2, 1, 2); rect(GOLD_DARK, W - 1 - x, H - 2, 1, 2); }
+
+  // Ya abierto, cada lado queda amarrado con un cordón y su borla
+  if (curtain.open > 0.6) {
+    const e = curtainEdge(cw, TIEBACK_Y);
+    ctx.globalAlpha = Math.min(1, (curtain.open - 0.6) / 0.3);
+    drawTieback(e, 1);
+    drawTieback(e, -1);
+    ctx.globalAlpha = 1;
+  }
+
+  // Con el telón cerrado, un reflector recorre la tela
+  const closed = Math.max(0, 1 - curtain.open * 3);
+  if (closed > 0) drawSpotlight(closed * (state === "title" || state === "starting" ? 1 : 0.6));
+
+  // Polvito del golpe
+  for (const p of curtain.puffs) {
+    ctx.globalAlpha = Math.min(1, p.life * 2) * 0.7;
+    rect("#e8d6c0", Math.round(p.x), p.y, p.size, p.size);
+  }
+  ctx.globalAlpha = 1;
+
+  drawValance();
+}
+
+function drawTieback(e, dir) {
+  const y = TIEBACK_Y;
+  const x0 = dir > 0 ? 0 : W - e - 1;
+  rect(GOLD_DARK, x0, y + 2, e + 1, 1);
+  rect(GOLD, x0, y, e + 1, 2);
+  // Borla que se mece
+  const bx = (dir > 0 ? e - 1 : W - e) + Math.round(Math.sin(time * 2.2 + dir) * 1.2);
+  rect(GOLD, bx, y + 2, 1, 4);
+  rect(GOLD_DARK, bx - 1, y + 6, 3, 1);
+  rect(GOLD, bx - 1, y + 7, 3, 5);
+  rect(GOLD_LIGHT, bx - 1, y + 7, 1, 4);
+}
+
+function drawValance() {
+  const drop = Math.round(Math.sin(curtain.thud * 14) * curtain.thud * 2); // rebota con el golpe
   for (let x = 0; x < W; x++) {
     const wave = Math.round(Math.abs(Math.sin((x / 20) * Math.PI)) * 4);
-    rect(x % 20 < 10 ? "#7a1428" : "#931a33", x, 0, 1, VALANCE_H - wave);
-    rect("#e0b040", x, VALANCE_H - wave, 1, 2);
-    rect("#140c0c", x, VALANCE_H - wave + 2, 1, 1);
+    const h = VALANCE_H - wave + drop;
+    rect(x % 20 < 10 ? "#7a1428" : "#931a33", x, 0, 1, h);
+    rect("#5a0e1e", x, 0, 1, 3);
+    rect(GOLD, x, h, 1, 2);
+    rect("#140c0c", x, h + 2, 1, 1);
   }
+  // Borlas colgando de cada pico de la cenefa
+  for (let k = 0; k <= W / 20; k++) {
+    const sx = k * 20 + Math.round(Math.sin(time * 2.5 + k * 0.9) * 1.1 + Math.sin(curtain.thud * 16) * curtain.thud * 2);
+    const top = VALANCE_H + 2 + drop;
+    rect(GOLD_DARK, sx, top, 1, 2);
+    rect(GOLD, sx - 1, top + 2, 3, 4);
+    rect(GOLD_LIGHT, sx - 1, top + 2, 1, 3);
+    rect(GOLD_DARK, sx, top + 6, 1, 1);
+  }
+}
+
+// Halo del reflector (en escalones, más pixel que un degradado) y motitas de polvo
+function drawSpotlight(a) {
+  if (a <= 0) return;
+  const cx = Math.round(W / 2 + Math.sin(time * 0.5) * 36);
+  const cy = Math.round(96 + Math.sin(time * 0.8) * 6);
+  ctx.save();
+  ctx.globalCompositeOperation = "lighter";
+  ctx.fillStyle = "#ffd9a0";
+  for (const [r, al] of [[72, 0.05], [56, 0.06], [40, 0.07], [26, 0.08]]) {
+    ctx.globalAlpha = al * a;
+    ctx.beginPath();
+    ctx.ellipse(cx, cy, r, r * 0.8, 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.fillStyle = "#fff4d6";
+  for (let k = 0; k < 18; k++) {
+    const t = time * (0.15 + (k % 5) * 0.04) + k * 7.3;
+    const mx = cx + Math.sin(t * 1.7 + k) * 50 * ((k % 3) + 1) / 3;
+    const my = cy + 40 - ((t * 20 + k * 13) % 80);
+    ctx.globalAlpha = a * (0.3 + 0.25 * Math.sin(time * 3 + k));
+    ctx.fillRect(Math.round(mx), Math.round(my), 1, 1);
+  }
+  ctx.restore();
 }
 
 // =====================================================
@@ -2531,17 +2687,51 @@ function drawParticles() {
 // =====================================================
 let waitingForInput = null;
 
-function say(text, speed = 40) {
+// Arma el texto con un <span> por letra (ya reservando su lugar, así nada salta
+// de línea mientras se escribe). Devuelve un elemento por carácter del texto
+// (los espacios son null) y resalta el nombre de la cumpleañera.
+function buildDialogText(text) {
+  dialogText.textContent = "";
+  const highlight = new Array(text.length).fill(false);
+  for (let at = text.indexOf(CONFIG.name); at !== -1; at = text.indexOf(CONFIG.name, at + 1)) {
+    highlight.fill(true, at, at + CONFIG.name.length);
+  }
+
+  const chars = [];
+  let word = null;
+  let wave = 0;
+  for (let k = 0; k < text.length; k++) {
+    if (text[k] === " ") {
+      dialogText.append(" ");
+      chars.push(null);
+      word = null;
+      continue;
+    }
+    if (!word) {
+      word = dialogText.appendChild(document.createElement("span"));
+      word.className = "word";
+    }
+    const ch = word.appendChild(document.createElement("span"));
+    ch.className = highlight[k] ? "ch hl" : "ch";
+    if (highlight[k]) ch.style.setProperty("--i", wave++);
+    ch.textContent = text[k];
+    chars.push(ch);
+  }
+  return chars;
+}
+
+function say(text, speed = 28) {
   return new Promise((resolve) => {
+    dialog.dataset.scene = scene;
     dialog.classList.remove("hidden");
     dialogNext.classList.remove("show");
-    dialogText.textContent = "";
+    const chars = buildDialogText(text);
     let i = 0;
     let done = false;
 
     const finish = () => {
       done = true;
-      dialogText.textContent = text;
+      for (const c of chars) c?.classList.add("on");
       dialogNext.classList.add("show");
       waitingForInput = () => {
         waitingForInput = null;
@@ -2555,7 +2745,7 @@ function say(text, speed = 40) {
 
     const timer = setInterval(() => {
       i++;
-      dialogText.textContent = text.slice(0, i);
+      chars[i - 1]?.classList.add("on");
       if (text[i - 1] !== " " && i % 2) Sound.blip();
       if (i >= text.length) { clearInterval(timer); finish(); }
     }, speed);
@@ -2892,8 +3082,7 @@ function resetScene() {
   particles = [];
   resetParty();
   scene = "outdoor";
-  curtain.open = 0;
-  curtain.done = null;
+  Object.assign(curtain, { open: 0, done: null, vel: 0, thud: 0, puffs: [] });
   girl.pose = "stand";
   girl.behindDoor = false;
   girl.reach = false;
@@ -2921,11 +3110,36 @@ function resetScene() {
 // =====================================================
 function startGame() {
   if (state !== "title") return;
+  state = "starting";
   Sound.init();
   Sound.select();
-  titleScreen.classList.add("hidden");
-  story();
+  // Deja que el título salga volando antes de abrir el telón
+  titleScreen.classList.add("leaving");
+  setTimeout(() => {
+    titleScreen.classList.add("hidden");
+    titleScreen.classList.remove("leaving");
+    story();
+  }, 550);
 }
+
+// Envuelve cada letra del título en un <span> para animarlas por separado
+(() => {
+  const title = $("title-text");
+  let i = 0;
+  for (const node of [...title.childNodes]) {
+    if (node.nodeType !== Node.TEXT_NODE) continue;
+    const frag = document.createDocumentFragment();
+    for (const c of node.textContent) {
+      if (c === " ") { frag.append(" "); continue; }
+      const span = document.createElement("span");
+      span.className = "ch";
+      span.style.setProperty("--i", i++);
+      span.textContent = c;
+      frag.append(span);
+    }
+    node.replaceWith(frag);
+  }
+})();
 
 $("start-btn").addEventListener("click", (e) => { e.stopPropagation(); startGame(); });
 $("replay-btn").addEventListener("click", (e) => {
