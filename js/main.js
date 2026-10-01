@@ -957,6 +957,7 @@ async function chapterFriends() {
   });
   await wait(1200);
   await say(`Por suerte, ${CONFIG.name} no está sola: tiene amigas que la quieren, la animan y la hacen reír.`);
+  await say(`Y es que ${CONFIG.name} es risueña y tiene una sonrisa hermosa, de esas que contagian a cualquiera.`);
   heartsOverFriends();
   await say("Cada una es especial para ella a su manera, y con todas comparte los mejores momentos.");
 

@@ -30,7 +30,7 @@ const PALETTE = {
   c: "#7ec8e3", // vela
   G: "#c9c9d9", // plato
   H: "#ff4d6d", // corazón
-  g: "#2c2c3c", // armazón de lentes
+  g: "#4a3f55", // armazón de lentes
   l: "#d8eefa", // cristal de los lentes
 };
 
@@ -308,10 +308,11 @@ const sideFace = (rows, face, from) =>
 const TALK_FACE = ["KSSSMMX."];                                   // fila 8: boca abierta
 const LAUGH_FACE = ["SSESSESX", "SESEESEX", "SSCSSMWX", "KSSSMMX."];  // filas 5-8: ojos ^ y carcajada
 const ANGRY_FACE = ["SXXSSXSX", "SSESSESX", "SSESSESX", "SCCSSXXX", "KSSSWWX."]; // filas 4-8: cejas y dientes apretados
-// Lentes de perfil (filas 4-8): lente cercano enmarcado, puente y patita hacia la oreja
-const GLASSES_FACE = ["SggggSSX", "gglWgESX", "SgEWgESX", "SggggCSX", "KSSSSMX."];
-const GLASSES_TALK = ["SggggSSX", "gglWgESX", "SgEWgESX", "SggggCSX", "KSSSMMX."];
-const GLASSES_LAUGH = ["SggggSSX", "gglWgSEX", "SgElgESX", "SggggMWX", "KSSSMMX."];
+// Lentes (filas 4-8): un cristal redondito sobre cada ojo (cols 10-13 y 13-16, comparten
+// el puente), esquinas abiertas para que no se vean cuadrados; boca en la fila 8
+const GLASSES_FACE = ["SggSggSX", "gWEglEgX", "glEglEgX", "SggSggCX", "KSSSSMX."];
+const GLASSES_TALK = ["SggSggSX", "gWEglEgX", "glEglEgX", "SggSggCX", "KSSSMMX."];
+const GLASSES_LAUGH = ["SggSggSX", "glEglEgX", "gElgElgX", "SggSggCX", "KSSMWMX."];
 
 // Milagros de lado, parada
 const MILI_SIDE_TOP = [
@@ -365,11 +366,15 @@ const PONY_HEAD = [
   "..XKXKKKKKKSSSSMX.",
   "..XKXKKKKKXXSSXX..",
 ];
+// Colita corta: amarrada atrás y termina a la altura del cuello
+const SHORT_PONY_HEAD = PONY_HEAD.map((row, i) =>
+  i === 8 ? "..XKX" + row.slice(5) : i === 9 ? "...XX" + row.slice(5) : row);
 // Pelo por la espalda en las filas 10-13 (columnas 0-8)
 const HAIR_BACK = {
   bob: ["....XXXXX", ".........", ".........", "........."],
   shoulder: ["...XKKKKK", "...XKKkKK", "....XXXXX", "........."],
   pony: ["..XKXXXXX", "..XKX....", "..XKX....", "...X....."],
+  shortPony: [".........", ".........", ".........", "........."],
 };
 // Torso (columnas 9-17): brazo colgando, o mano en la panza al reírse
 const TORSO = ["XTTTTTX..", "XTTtTTX..", "XTTtTTX..", "XTTSTTX.."];
@@ -393,9 +398,9 @@ const FRIENDS = {
     colors: { K: "#1c1a22", k: "#3a3848", S: "#f8e2cc", s: "#e3c4a8", C: "#f4b0a0",
               T: "#2a2a33", t: "#4a4a58", b: "#1c1a22", J: "#4a78c2", j: "#3a5f9e" },
   },
-  // Melena corta castaña, piel trigueña, blusa coral
+  // Colita castaña hasta el cuello, lentes, piel trigueña, blusa coral
   bob: {
-    head: "bob", outfit: "jeans",
+    head: "shortPony", outfit: "jeans", glasses: true,
     colors: { K: "#6b4430", k: "#8a5a40", S: "#d9a27a", s: "#b98560", C: "#e08a74",
               T: "#ff9a76", t: "#e07a58", J: "#3b4a8a", j: "#2e3b70" },
   },
@@ -414,7 +419,7 @@ const FRIENDS = {
 };
 
 function friendRows(f, face, faceFrom, laugh) {
-  let head = f.head === "pony" ? PONY_HEAD : SIDE_HEAD;
+  let head = { pony: PONY_HEAD, shortPony: SHORT_PONY_HEAD }[f.head] || SIDE_HEAD;
   if (f.glasses) head = head.map((row, i) => (i === 5 ? row.slice(0, 8) + "gg" + row.slice(10) : row));
   head = sideFace(head, face, faceFrom);
   const torso = (laugh ? TORSO_LAUGH : TORSO).map((t, i) => HAIR_BACK[f.head][i] + t);
