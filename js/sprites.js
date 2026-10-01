@@ -353,6 +353,21 @@ const STAND_LEGS = [
 ];
 const MILI_SIDE = [...SIDE_HEAD, ...MILI_SIDE_TOP, ...STAND_LEGS];
 
+// --- Sentada en la banca (escena de noche) ---
+// Igual que sentada en la oficina pero con la mano descansando en las piernas.
+const BENCH_BODY = [
+  "...XKKKKKXTTTNTX..",
+  "..XKKKKKKXLLtLLX..",
+  "..XKKKKKXXTTtTTX..",
+  "...XKKKX.XLLtLLX..",
+  "....XXX..XbbbtSX..",
+  ...SIT_BODY.slice(5),
+];
+const MILI_BENCH = [...SIDE_HEAD, ...BENCH_BODY];
+const SAD_FACE = ["SSSSSSSX", "SSSSSSSX", "SSESSESX"];        // filas 4-6: mirada baja, ojos entrecerrados
+const LOOK_UP_FACE = ["SSESSESX", "SSESSESX", "SSSSSSSX"];    // filas 4-6: mirando hacia el cielo
+const SMILE_FACE = ["SSESSESX", "SESEESEX", "SSCSSCSX", "KSSSMMX."]; // filas 5-8: ojitos ^ y sonrisa
+
 // Amigas: cabeza + pelo por la espalda + torso + ropa
 const PONY_HEAD = [
   ".....XXXXXXXXXX...",
@@ -416,6 +431,26 @@ const FRIENDS = {
     colors: { K: "#5a3a30", k: "#7a5040", S: "#d09470", s: "#b07a58", C: "#d98070",
               T: "#b388eb", t: "#8f66c9" },
   },
+
+  // Invitadas de la fiesta sorpresa
+  g1: { head: "shoulder", outfit: "dress",
+    colors: { K: "#c9a050", k: "#e0c070", S: "#f8dcc4", s: "#e0bca0", C: "#f4a8a0", T: "#ffd166", t: "#e6b040" } },
+  g2: { head: "pony", outfit: "jeans",
+    colors: { K: "#8a3324", k: "#a84a38", S: "#e8b896", s: "#c99878", C: "#e8907a", T: "#8ce99a", t: "#5cc06e" } },
+  g3: { head: "bob", outfit: "dress",
+    colors: { K: "#1c1a22", k: "#3a3848", S: "#c98a62", s: "#a86e4a", C: "#d97a64", T: "#ff8fb5", t: "#e8668f" } },
+  g4: { head: "shoulder", outfit: "jeans", glasses: true,
+    colors: { K: "#6b4430", k: "#8a5a40", S: "#f2cfb0", s: "#dcb090", C: "#f2a08f", T: "#7ec8e3", t: "#58a8c8" } },
+  g5: { head: "shortPony", outfit: "dress",
+    colors: { K: "#3a2420", k: "#5a3a30", S: "#d9a27a", s: "#b98560", C: "#e08a74", T: "#f4a261", t: "#d98440" } },
+  g6: { head: "bob", outfit: "jeans",
+    colors: { K: "#a0522d", k: "#c06a40", S: "#f8e2cc", s: "#e3c4a8", C: "#f4b0a0", T: "#cdb4db", t: "#a990bd" } },
+  g7: { head: "pony", outfit: "dress",
+    colors: { K: "#d8b060", k: "#f0cc80", S: "#f2cfb0", s: "#dcb090", C: "#f2a08f", T: "#e5383b", t: "#b82a2d" } },
+  g8: { head: "shoulder", outfit: "jeans",
+    colors: { K: "#1c1a22", k: "#3a3848", S: "#a8714f", s: "#8a5a3c", C: "#c0705a", T: "#f0f0f0", t: "#c8c8d0" } },
+  g9: { head: "shortPony", outfit: "jeans", glasses: true,
+    colors: { K: "#5a3a30", k: "#7a5040", S: "#e0a980", s: "#c08660", C: "#e8907a", T: "#9b5de5", t: "#7a40c0" } },
 };
 
 function friendRows(f, face, faceFrom, laugh) {
@@ -490,6 +525,12 @@ const SPRITES = {
     laugh: buildSprite(sideFace([...SIDE_HEAD, ...MILI_SIDE_LAUGH_TOP, ...STAND_LEGS], LAUGH_FACE, 5)),
     angry: buildSprite(sideFace([...SIDE_HEAD, ...MILI_SIDE_ANGRY_TOP, ...STAND_LEGS], ANGRY_FACE, 4)),
     angry2: buildSprite(sideFace([...SIDE_HEAD, ...MILI_SIDE_ANGRY_TOP2, ...STAND_LEGS], ANGRY_FACE, 4)),
+    smile: buildSprite(sideFace(MILI_SIDE, SMILE_FACE, 5)),
+  },
+  bench: {
+    sad: buildSprite(sideFace(MILI_BENCH, SAD_FACE, 4)),
+    look: buildSprite(sideFace(MILI_BENCH, LOOK_UP_FACE, 4)),
+    smile: buildSprite(sideFace(MILI_BENCH, SMILE_FACE, 5)),
   },
   emojiLaugh: buildSprite(EMOJI_LAUGH),
   anger: buildSprite(ANGER),

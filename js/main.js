@@ -82,7 +82,7 @@ function drawCloud(x, y) {
 //  de vidrio (en la izquierda está la puerta corrediza, que ella abre
 //  con la mano) y la de la derecha es color crema.
 // =====================================================
-let scene = "outdoor"; // outdoor | office
+let scene = "outdoor"; // outdoor | office | hallway | night | door | party
 
 // Dónde se sienta ella; la silla y el escritorio se acomodan alrededor.
 // El escritorio queda pegado a la pared crema (su extremo toca la pared).
@@ -396,11 +396,12 @@ const talking = (phase) => Math.sin(time * 2 + phase * 3) > 0.2 && Math.floor(ti
 function drawFriend(f) {
   const spr = SPRITES.friends[f.key];
   const hop = f.hop > 0 ? -Math.round(Math.sin((f.hop / 0.5) * Math.PI) * 10) : 0;
-  const y = f.feet - GIRL_H + (f.laugh ? laughBob(f.phase) : 0) + hop;
+  const y = f.feet - GIRL_H + (f.laugh ? laughBob(f.phase) : 0) + hop - (f.lift || 0);
   ctx.fillStyle = "rgba(0,0,0,0.2)";
   ctx.fillRect(f.x + GIRL_HALF - 10, f.feet - 1, 20, 2);
-  const img = f.laugh ? spr.laugh : talking(f.phase) ? spr.talk : spr.chat;
+  const img = f.laugh ? spr.laugh : !f.quiet && talking(f.phase) ? spr.talk : spr.chat;
   drawSprite(img, f.x, y, SCALE, f.facing === -1);
+  return y;
 }
 
 // Dibuja a todas de atrás hacia adelante para que se encimen bien
@@ -452,6 +453,766 @@ function spawnSparkles(f) {
     x: f.x + 4 + Math.random() * 28, y: f.feet - GIRL_H - 4 + Math.random() * 40,
     vx: 0, vy: -6, life: 0.6,
   });
+}
+
+// =====================================================
+//  ESCENA: MIRADOR DE NOCHE
+//  Empieza lloviendo y nublado; poco a poco se despeja, sale la luna,
+//  se enciende una constelación de corazón, llegan las luciérnagas
+//  y al final amanece.
+// =====================================================
+const BENCH_SPOT = { x: 104 };
+const LAMP = { x: 168, top: 84 };
+const MOON = { x: 58, y: 32, r: 11 };
+const HEART_C = { x: 238, y: 48 };
+
+// Cielo: uno de noche y otro de amanecer que se va encimando
+function skyCanvas(bands) {
+  const c = document.createElement("canvas");
+  c.width = W; c.height = H;
+  const g = c.getContext("2d");
+  const band = GROUND_Y / bands.length;
+  bands.forEach((col, i) => { g.fillStyle = col; g.fillRect(0, Math.floor(i * band), W, Math.ceil(band)); });
+  return c;
+}
+const nightSky = skyCanvas(["#0b0d26", "#10143a", "#161d48", "#1d2656", "#252f64", "#2e3870", "#38427c"]);
+const dawnSky = skyCanvas(["#3d2a6b", "#5a3a8a", "#8a4f9e", "#c46a9e", "#f08a8a", "#ffaa7a", "#ffd08a"]);
+
+// Ciudad a lo lejos, colina con pasto y un árbol (el cielo queda transparente)
+const nightLand = (() => {
+  const c = document.createElement("canvas");
+  c.width = W; c.height = H;
+  const g = c.getContext("2d");
+  const r = (col, x, y, w, h) => { g.fillStyle = col; g.fillRect(x, Math.round(y), w, Math.round(h)); };
+
+  // Edificios con ventanitas encendidas
+  let x = 0, k = 0;
+  while (x < W) {
+    const w = 14 + ((k * 7) % 4) * 4, h = 18 + ((k * 13) % 5) * 7;
+    r("#1a1c3a", x, GROUND_Y - 14 - h, w, h + 14);
+    for (let wy = GROUND_Y - 10 - h; wy < GROUND_Y - 16; wy += 5)
+      for (let wx = x + 3; wx < x + w - 3; wx += 4)
+        if (((wx * 31 + wy * 17) >>> 0) % 5 < 2) r("#ffd27a", wx, wy, 2, 2);
+    x += w + 2; k++;
+  }
+  // Colina oscura delante de la ciudad
+  for (let x = 0; x < W; x++) {
+    const h = 10 + Math.sin(x / 30) * 4 + Math.sin(x / 11) * 2;
+    r("#14233a", x, GROUND_Y - Math.floor(h), 1, Math.floor(h));
+  }
+  // Pasto y tierra
+  r("#2f6b4a", 0, GROUND_Y, W, 3);
+  r("#1f4a35", 0, GROUND_Y + 3, W, 3);
+  r("#2a2036", 0, GROUND_Y + 6, W, H - GROUND_Y - 6);
+  g.fillStyle = "#211a2c";
+  for (let y = GROUND_Y + 10; y < H; y += 8)
+    for (let x = (y / 8) % 2 ? 0 : 8; x < W; x += 16) g.fillRect(x, y, 6, 3);
+  for (let x = 4; x < W; x += 9) r("#3f8a5e", x, GROUND_Y - 2, 1, 2); // hojitas de pasto
+
+  // Árbol a la izquierda
+  r("#140c0c", 20, GROUND_Y - 46, 10, 46);
+  r("#4a3226", 22, GROUND_Y - 46, 6, 46);
+  for (const [cx, cy, rad] of [[25, 82, 22], [8, 92, 14], [44, 90, 15], [26, 66, 14]]) {
+    for (let dy = -rad; dy <= rad; dy++) {
+      const half = Math.floor(Math.sqrt(rad * rad - dy * dy));
+      r("#0f2a20", cx - half - 1, cy + dy, half * 2 + 2, 1);
+      r(dy < -rad / 3 ? "#1f4a35" : "#183b2b", cx - half, cy + dy, half * 2, 1);
+    }
+  }
+  return c;
+})();
+
+// Estrellas que titilan (cada una a su ritmo)
+const nightStars = Array.from({ length: 46 }, (_, i) => ({
+  x: (i * 89 + 13) % W, y: (i * 37 + 5) % 96, phase: i * 1.3,
+}));
+
+// Constelación de corazón: 12 estrellas alrededor de la figura
+const HEART_STARS = Array.from({ length: 12 }, (_, i) => {
+  const t = (i / 12) * Math.PI * 2;
+  return {
+    x: HEART_C.x + 16 * Math.sin(t) ** 3 * 1.5,
+    y: HEART_C.y - (13 * Math.cos(t) - 5 * Math.cos(2 * t) - 2 * Math.cos(3 * t) - Math.cos(4 * t)) * 1.4,
+  };
+});
+
+// Luciérnagas
+const fireflies = Array.from({ length: 16 }, (_, i) => ({
+  x: (i * 71 + 30) % W, y: 92 + ((i * 29) % 52), phase: i * 2.1,
+}));
+
+// Estado de la escena (todo de 0 a 1, se anima con tween)
+const night = {};
+function resetNight() {
+  Object.assign(night, {
+    rain: 1, clear: 0, glow: 0, fireflies: 0, dawn: 0, lit: 0,
+    tears: false, aura: false, shoot: null, tearTimer: 0,
+  });
+}
+resetNight();
+
+// Anima una propiedad de un objeto hasta "to" en "dur" segundos
+let tweens = [];
+function tween(obj, key, to, dur) {
+  return new Promise((resolve) => tweens.push({ obj, key, from: obj[key], to, dur, t: 0, resolve }));
+}
+function updateTweens(dt) {
+  for (const tw of tweens) {
+    tw.t += dt;
+    const p = Math.min(1, tw.t / tw.dur);
+    tw.obj[tw.key] = tw.from + (tw.to - tw.from) * (p < 0.5 ? 2 * p * p : 1 - (-2 * p + 2) ** 2 / 2);
+    if (p >= 1) tw.resolve();
+  }
+  tweens = tweens.filter((tw) => tw.t < tw.dur);
+}
+
+// Enciende las estrellas del corazón de una en una, cada una con su destello
+async function lightHeart(upTo) {
+  while (night.lit < upTo) {
+    const s = HEART_STARS[night.lit];
+    Sound.twinkle(night.lit);
+    for (let i = 0; i < 4; i++)
+      particles.push({ type: "spark", x: s.x + (Math.random() - 0.5) * 8, y: s.y + (Math.random() - 0.5) * 8, vx: 0, vy: -4, life: 0.6 });
+    night.lit++;
+    await wait(260);
+  }
+}
+
+// Dibuja un círculo pixelado fila por fila
+function pixelCircle(cx, cy, rad, col) {
+  for (let dy = -rad; dy <= rad; dy++) {
+    const half = Math.round(Math.sqrt(rad * rad - dy * dy));
+    rect(col, Math.round(cx - half), cy + dy, half * 2, 1);
+  }
+}
+
+function drawNightCloud(x, y, s) {
+  rect("#3a3f5e", x + 6 * s, y, 18 * s, 5 * s);
+  rect("#3a3f5e", x, y + 4 * s, 32 * s, 7 * s);
+  rect("#4a5070", x + 8 * s, y - 3 * s, 10 * s, 4 * s);
+  rect("#2c304a", x + 2 * s, y + 9 * s, 28 * s, 2 * s);
+}
+
+function drawNight() {
+  const clear = night.clear, dawn = night.dawn;
+  ctx.drawImage(nightSky, 0, 0);
+  if (dawn > 0) { ctx.globalAlpha = dawn; ctx.drawImage(dawnSky, 0, 0); ctx.globalAlpha = 1; }
+
+  // Estrellas: casi no se ven con nubes, y se apagan al amanecer
+  const starA = (0.25 + clear * 0.75) * (1 - dawn * 0.85);
+  for (const s of nightStars) {
+    ctx.globalAlpha = starA * (0.45 + 0.55 * Math.abs(Math.sin(time * 1.4 + s.phase)));
+    rect("#ffffff", s.x, s.y, 1, 1);
+  }
+  ctx.globalAlpha = 1;
+
+  // Luna con su halo
+  ctx.globalAlpha = 0.12 * (0.4 + clear * 0.6) * (1 - dawn * 0.6);
+  pixelCircle(MOON.x, MOON.y, MOON.r + 8, "#fff6c8");
+  pixelCircle(MOON.x, MOON.y, MOON.r + 4, "#fff6c8");
+  ctx.globalAlpha = 1 - dawn * 0.5;
+  pixelCircle(MOON.x, MOON.y, MOON.r, "#fff3c4");
+  rect("#e8dca8", MOON.x - 5, MOON.y - 3, 3, 3);
+  rect("#e8dca8", MOON.x + 3, MOON.y + 2, 4, 3);
+  rect("#e8dca8", MOON.x - 1, MOON.y + 5, 2, 2);
+  ctx.globalAlpha = 1;
+
+  // Constelación de corazón: líneas entre las estrellas encendidas
+  const pulse = 0.6 + 0.4 * Math.sin(time * 3);
+  if (night.lit > 0) {
+    ctx.strokeStyle = "#ffe9a8";
+    ctx.lineWidth = 1;
+    ctx.globalAlpha = (0.35 + night.glow * 0.4 * pulse) * (1 - dawn * 0.5);
+    ctx.beginPath();
+    HEART_STARS.slice(0, night.lit).forEach((s, i) => (i ? ctx.lineTo(s.x, s.y) : ctx.moveTo(s.x, s.y)));
+    if (night.lit === HEART_STARS.length) ctx.closePath();
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+  }
+  HEART_STARS.slice(0, night.lit).forEach((s, i) => {
+    const tw = 0.7 + 0.3 * Math.sin(time * 4 + i);
+    ctx.globalAlpha = tw;
+    rect("#fff6c8", Math.round(s.x) - 1, s.y, 3, 1);
+    rect("#fff6c8", Math.round(s.x), s.y - 1, 1, 3);
+    rect("#ffffff", Math.round(s.x), s.y, 1, 1);
+    ctx.globalAlpha = 1;
+  });
+  // Cuando se completa, el corazón late con un brillo rosado en el centro
+  if (night.glow > 0) {
+    ctx.globalAlpha = night.glow * 0.18 * pulse;
+    pixelCircle(HEART_C.x, HEART_C.y - 4, 16, "#ff8fb5");
+    ctx.globalAlpha = 1;
+  }
+
+  // Estrella fugaz
+  if (night.shoot) {
+    const p = night.shoot.t / 1.1;
+    const sx = 310 - p * 170, sy = 8 + p * 50;
+    for (let i = 0; i < 14; i++) {
+      ctx.globalAlpha = (1 - i / 14) * (1 - p * 0.6);
+      rect(i < 2 ? "#ffffff" : "#ffe9a8", Math.round(sx + i * 2.2), Math.round(sy - i * 0.65), 2, 1);
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  // Nubes de lluvia que tapan la luna y luego se van a los lados
+  const drift = Math.sin(time * 0.2) * 4;
+  for (const [cx, cy, s, dir] of [[26, 20, 2, -1], [70, 36, 1, -1], [150, 14, 2, 1], [210, 34, 1, 1], [262, 18, 1, 1]]) {
+    ctx.globalAlpha = 1 - clear * 0.4;
+    drawNightCloud(Math.round(cx + drift + dir * clear * 190), cy, s);
+  }
+  ctx.globalAlpha = 1;
+
+  ctx.drawImage(nightLand, 0, 0);
+
+  // Farol: poste, lámpara y su luz (titila con la lluvia)
+  const flick = night.rain > 0.3 && Math.sin(time * 23) > 0.85 ? 0.4 : 1;
+  const lampOn = (1 - dawn * 0.7) * flick;
+  ctx.globalAlpha = 0.1 * lampOn;
+  pixelCircle(LAMP.x + 3, LAMP.top + 4, 26, "#ffd27a");
+  pixelCircle(LAMP.x + 3, LAMP.top + 4, 14, "#ffd27a");
+  ctx.globalAlpha = 0.12 * lampOn;
+  ctx.fillStyle = "#ffd27a";
+  ctx.beginPath();
+  ctx.moveTo(LAMP.x + 1, LAMP.top + 8); ctx.lineTo(LAMP.x + 5, LAMP.top + 8);
+  ctx.lineTo(LAMP.x + 30, GROUND_Y + 2); ctx.lineTo(LAMP.x - 24, GROUND_Y + 2);
+  ctx.fill();
+  ctx.globalAlpha = 1;
+  rect("#140c0c", LAMP.x + 1, LAMP.top + 6, 4, GROUND_Y - LAMP.top - 6);
+  rect("#3a3f5e", LAMP.x + 2, LAMP.top + 6, 2, GROUND_Y - LAMP.top - 6);
+  rect("#140c0c", LAMP.x - 1, GROUND_Y - 3, 8, 3);
+  rect("#140c0c", LAMP.x - 2, LAMP.top, 10, 8);
+  rect(lampOn > 0.5 ? "#fff1b8" : "#b8a870", LAMP.x - 1, LAMP.top + 1, 8, 6);
+  rect("#140c0c", LAMP.x - 3, LAMP.top - 2, 12, 2);
+
+  // Banca de madera (de frente), ella se sienta en la orilla derecha
+  const bx = BENCH_SPOT.x - 34, bw = 72;
+  rect("#140c0c", bx, GROUND_Y - 30, bw, 13);                     // respaldo
+  rect("#8d5a3b", bx + 1, GROUND_Y - 29, bw - 2, 4);
+  rect("#8d5a3b", bx + 1, GROUND_Y - 23, bw - 2, 4);
+  rect("#140c0c", bx + 4, GROUND_Y - 17, 3, 10);                  // postes del respaldo
+  rect("#140c0c", bx + bw - 7, GROUND_Y - 17, 3, 10);
+  rect("#140c0c", bx - 2, GROUND_Y - 8, bw + 4, 4);               // asiento
+  rect("#b07a4f", bx - 1, GROUND_Y - 7, bw + 2, 2);
+  rect("#140c0c", bx + 2, GROUND_Y - 4, 3, 4);                    // patas
+  rect("#140c0c", bx + bw - 5, GROUND_Y - 4, 3, 4);
+
+  drawGirl();
+
+  // Luciérnagas
+  if (night.fireflies > 0) {
+    for (const f of fireflies) {
+      const fx = Math.round(f.x + Math.sin(time * 0.7 + f.phase) * 12);
+      const fy = Math.round(f.y + Math.cos(time * 0.9 + f.phase * 2) * 7 - night.fireflies * 6);
+      const a = night.fireflies * (0.4 + 0.6 * Math.abs(Math.sin(time * 2.2 + f.phase)));
+      ctx.globalAlpha = a * 0.3;
+      rect("#e8ff8a", fx - 1, fy - 1, 3, 3);
+      ctx.globalAlpha = a;
+      rect("#f4ffb8", fx, fy, 1, 1);
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  // Penumbra de la tormenta
+  if (night.rain > 0) {
+    ctx.globalAlpha = 0.28 * night.rain;
+    rect("#0a0a1e", 0, 0, W, H);
+    ctx.globalAlpha = 1;
+  }
+}
+
+function updateNight(dt) {
+  // Lluvia: más gotas mientras más fuerte
+  if (Math.random() < night.rain * dt * 140) {
+    for (let i = 0; i < 2; i++)
+      particles.push({ type: "rain", x: Math.random() * (W + 40) - 20, y: -6, vx: -30, vy: 210 + Math.random() * 40, life: 1.2 });
+  }
+  // Lágrimas que resbalan de su ojo
+  if (night.tears && girl.pose === "bench" && (night.tearTimer -= dt) <= 0) {
+    night.tearTimer = 0.7 + Math.random() * 0.5;
+    particles.push({
+      type: "tear", x: girl.x + 30, y: girl.y + 13 + girl.bodyOffset * SCALE,
+      vx: 4, vy: 6, life: 0.9,
+    });
+  }
+  // Brillo a su alrededor cuando se pone de pie
+  if (night.aura && Math.random() < dt * 18) {
+    particles.push({
+      type: "spark", x: girl.x + 2 + Math.random() * 32, y: girl.y + Math.random() * 40,
+      vx: 0, vy: -10, life: 0.7,
+    });
+  }
+  if (night.shoot && (night.shoot.t += dt) > 1.1) night.shoot = null;
+}
+
+// Suspiro sentada en la banca (sin la gota de sudor de la oficina)
+async function benchSigh() {
+  girl.bodyOffset = -1;
+  await wait(650);
+  girl.bodyOffset = 1;
+  Sound.sigh();
+  for (let i = 0; i < 5; i++) {
+    particles.push({
+      type: "puff", x: girl.x + 34, y: girl.y + 16 + Math.random() * 3,
+      vx: 10 + Math.random() * 12, vy: -4 - Math.random() * 6, life: 0.9 + Math.random() * 0.4,
+    });
+  }
+  await wait(900);
+}
+
+// =====================================================
+//  ESCENA FINAL: LA PUERTA Y LA FIESTA SORPRESA
+// =====================================================
+const HOUSE_DOOR = { x: 146, w: 36, top: GROUND_Y - 72 };
+const DOOR_BOTTOM = GROUND_Y - 4;                       // la puerta empieza arriba del escalón
+const HOUSE_WINDOWS = [{ x: 56, y: 62, w: 44, h: 36 }, { x: 228, y: 62, w: 44, h: 36 }];
+const PORCH_LAMP = { x: 128, y: 82 };
+
+// Fachada de la casita al atardecer
+const houseBg = (() => {
+  const c = document.createElement("canvas");
+  c.width = W; c.height = H;
+  const g = c.getContext("2d");
+  const r = (col, x, y, w, h) => { g.fillStyle = col; g.fillRect(Math.round(x), Math.round(y), Math.round(w), Math.round(h)); };
+
+  const sky = ["#2b1d4e", "#3d2a6b", "#5a3a8a", "#7d4ea3", "#a864b5", "#d47fb8", "#f2a0b8"];
+  const band = GROUND_Y / sky.length;
+  sky.forEach((col, i) => r(col, 0, Math.floor(i * band), W, Math.ceil(band)));
+  g.fillStyle = "#fff";
+  for (let i = 0; i < 18; i++) g.fillRect((i * 97) % W, (i * 53) % 30, 1, 1);
+
+  // Arbustos a los lados
+  for (const [cx, cy, rad] of [[14, 132, 18], [36, 140, 12], [306, 132, 18], [286, 140, 12]]) {
+    for (let dy = -rad; dy <= rad; dy++) {
+      const half = Math.floor(Math.sqrt(rad * rad - dy * dy));
+      r("#1e5a3a", cx - half - 1, cy + dy, half * 2 + 2, 1);
+      r(dy < -rad / 3 ? "#4caf50" : "#3a8f48", cx - half, cy + dy, half * 2, 1);
+    }
+  }
+
+  // Techo de tejas
+  for (let y = 14; y < 36; y++) {
+    const left = 46 - (y - 14) * 0.75;
+    r(y % 4 === 0 ? "#6e2a3a" : "#8e3a4c", left, y, W - left * 2, 1);
+  }
+  r("#140c0c", 28, 13, W - 56, 1);
+  r("#4a1828", 28, 36, W - 56, 3);
+
+  // Pared con tablitas
+  r("#f3d9c0", 40, 39, W - 80, GROUND_Y - 39);
+  for (let y = 45; y < GROUND_Y; y += 6) r("#e6c6a8", 40, y, W - 80, 1);
+  r("#140c0c", 39, 39, 1, GROUND_Y - 39);
+  r("#140c0c", W - 40, 39, 1, GROUND_Y - 39);
+
+  // Ventanas con luz cálida y cortinas (las siluetas se dibujan aparte)
+  for (const w of HOUSE_WINDOWS) {
+    r("#140c0c", w.x - 3, w.y - 3, w.w + 6, w.h + 6);
+    r("#ffffff", w.x - 2, w.y - 2, w.w + 4, w.h + 4);
+    r("#ffe3a0", w.x, w.y, w.w, w.h);
+    r("#ffd27a", w.x, w.y + w.h / 2, w.w, w.h / 2);
+    r("#ff8fb5", w.x, w.y, 6, w.h); r("#ff8fb5", w.x + w.w - 6, w.y, 6, w.h);
+    r("#e8668f", w.x + 5, w.y, 1, w.h); r("#e8668f", w.x + w.w - 6, w.y, 1, w.h);
+    r("#ffffff", w.x - 4, w.y + w.h + 2, w.w + 8, 3);                  // repisa
+  }
+
+  // Marco de la puerta y ventanita de arriba
+  const d = HOUSE_DOOR;
+  r("#140c0c", d.x - 5, d.top - 13, d.w + 10, DOOR_BOTTOM - d.top + 13);
+  r("#fff8ee", d.x - 4, d.top - 12, d.w + 8, DOOR_BOTTOM - d.top + 12);
+  r("#140c0c", d.x - 1, d.top - 10, d.w + 2, 9);
+  r("#ffd27a", d.x, d.top - 9, d.w, 7);
+  r("#140c0c", d.x + d.w / 2, d.top - 9, 1, 7);
+  // Escalón y tapete
+  r("#140c0c", d.x - 10, DOOR_BOTTOM - 1, d.w + 20, 6);
+  r("#c8b4a0", d.x - 9, DOOR_BOTTOM, d.w + 18, 4);
+  // Macetas con flores
+  for (const px of [98, 196]) {
+    r("#140c0c", px - 1, GROUND_Y - 13, 14, 13);
+    r("#c0603a", px, GROUND_Y - 12, 12, 12);
+    r("#3a8f48", px + 1, GROUND_Y - 20, 10, 8);
+    r("#ff4d6d", px + 2, GROUND_Y - 22, 3, 3); r("#ffe066", px + 7, GROUND_Y - 21, 3, 3);
+  }
+  // Farolito del pórtico
+  const l = PORCH_LAMP;
+  r("#140c0c", l.x - 3, l.y - 2, 8, 12);
+  r("#fff1b8", l.x - 2, l.y, 6, 8);
+  r("#140c0c", l.x - 4, l.y - 3, 10, 2);
+
+  // Pasto, tierra y caminito
+  r("#4caf50", 0, GROUND_Y, W, 4);
+  r("#2e7d32", 0, GROUND_Y + 4, W, 2);
+  r("#8d5a3b", 0, GROUND_Y + 6, W, H - GROUND_Y - 6);
+  g.fillStyle = "#6d4028";
+  for (let y = GROUND_Y + 10; y < H; y += 8)
+    for (let x = (y / 8) % 2 ? 0 : 8; x < W; x += 16) g.fillRect(x, y, 6, 3);
+  for (let y = GROUND_Y + 4; y < H; y += 7) r("#b8a090", d.x + 4 + ((y / 7) % 2) * 6, y, 22, 4);
+  return c;
+})();
+
+// Salón de la fiesta: pared rosa, piso de madera, puerta abierta y banderines
+const FLOOR_Y = 118;
+const PARTY_TABLE = { x: 112, w: 104, top: 120 };
+const PARTY_CAKE = { x: 148, y: PARTY_TABLE.top - 22 };
+const FLAG_COLORS = ["#ff4d6d", "#ffe066", "#7ec8e3", "#8ce99a", "#ff8fb5", "#cdb4db"];
+const BANNER_COLORS = ["#ff4d6d", "#4a90c8", "#3fa058", "#e8668f", "#9b5de5", "#f08a30"]; // que se lean sobre blanco
+
+const partyBg = (() => {
+  const c = document.createElement("canvas");
+  c.width = W; c.height = H;
+  const g = c.getContext("2d");
+  const r = (col, x, y, w, h) => { g.fillStyle = col; g.fillRect(Math.round(x), Math.round(y), Math.round(w), Math.round(h)); };
+
+  r("#f9d5e5", 0, 0, W, FLOOR_Y);
+  for (let x = 0; x < W; x += 16) r("#fbe3ee", x, 0, 8, FLOOR_Y);
+  r("#ffffff", 0, 98, W, 2);
+  r("#eab3c9", 0, 100, W, FLOOR_Y - 100);
+  r("#d998b2", 0, FLOOR_Y - 2, W, 2);
+  // Piso de madera
+  r("#c98f5e", 0, FLOOR_Y, W, H - FLOOR_Y);
+  for (let y = FLOOR_Y + 6, k = 0; y < H; y += 7, k++) {
+    r("#b07a4f", 0, y, W, 1);
+    for (let x = (k % 3) * 23; x < W; x += 70) r("#b07a4f", x, y - 6, 1, 6);
+  }
+  // Puerta por donde entra ella (abierta, con la luz de afuera)
+  r("#140c0c", 6, 44, 36, FLOOR_Y - 44);
+  r("#fff8ee", 7, 45, 34, FLOOR_Y - 45);
+  r("#fff4c8", 10, 48, 28, FLOOR_Y - 48);
+  r("#140c0c", 42, 46, 6, FLOOR_Y - 46);
+  r("#b0603a", 43, 47, 4, FLOOR_Y - 48);
+  // Banderines de colores colgando de un cordón
+  for (let x = 0; x < W; x++) {
+    const y = 9 + Math.round(Math.sin(((x % 80) / 80) * Math.PI) * 8);
+    r("#7a4a5a", x, y, 1, 1);
+    if (x % 10 === 3) {
+      const col = FLAG_COLORS[(x / 10 | 0) % FLAG_COLORS.length];
+      for (let k = 0; k < 6; k++) r(col, x - 3 + k / 2, y + 1 + k, 7 - k, 1);
+    }
+  }
+  return c;
+})();
+
+// Globos que flotan (los de la mesa van amarrados a sus esquinas)
+const BALLOONS = [
+  { x: 102, y: 66, ax: 113, ay: 120, c: "#ff4d6d" }, { x: 92, y: 54, ax: 113, ay: 120, c: "#ffe066" },
+  { x: 116, y: 52, ax: 113, ay: 120, c: "#7ec8e3" }, { x: 226, y: 64, ax: 215, ay: 120, c: "#8ce99a" },
+  { x: 214, y: 50, ax: 215, ay: 120, c: "#ff8fb5" }, { x: 238, y: 52, ax: 215, ay: 120, c: "#cdb4db" },
+  { x: 60, y: 30, c: "#ff8fb5" }, { x: 74, y: 24, c: "#ffe066" }, { x: 268, y: 26, c: "#7ec8e3" },
+  { x: 284, y: 32, c: "#ff4d6d" }, { x: 298, y: 24, c: "#8ce99a" },
+].map((b, i) => ({ ...b, phase: i * 1.9 }));
+
+function drawBalloon(b) {
+  const x = Math.round(b.x + Math.sin(time * 1.2 + b.phase) * 2);
+  const y = Math.round(b.y + Math.sin(time * 1.7 + b.phase) * 2);
+  ctx.strokeStyle = "rgba(90,60,80,0.7)";
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(x + 0.5, y + 8);
+  ctx.quadraticCurveTo(x + 4, y + 20, b.ax ?? x + 1, b.ay ?? y + 26);
+  ctx.stroke();
+  pixelCircle(x, y, 7, "#140c0c");
+  pixelCircle(x, y, 6, b.c);
+  rect("#ffffff", x - 3, y - 4, 2, 2);
+  rect("#140c0c", x - 1, y + 7, 3, 2);
+}
+
+// Mesa con mantel, pastel, cupcakes, gaseosas, vasos y bocadillos
+function drawTable() {
+  const { x, w, top } = PARTY_TABLE;
+  rect("#140c0c", x + 6, top + 16, 4, GROUND_Y - 4 - top - 16);     // patas
+  rect("#140c0c", x + w - 10, top + 16, 4, GROUND_Y - 4 - top - 16);
+  rect("#140c0c", x - 3, top - 4, w + 6, 22);
+  rect("#ffffff", x - 2, top - 3, w + 4, 4);                         // superficie
+  rect("#fff0f5", x - 2, top + 1, w + 4, 16);                        // mantel de frente
+  rect("#ff8fb5", x - 2, top + 5, w + 4, 2);
+  for (let k = 0; k < w + 4; k += 8) pixelCircle(x - 2 + k + 4, top + 17, 3, "#ff8fb5"); // olanes
+
+  // Gaseosas: cola, naranja y limón
+  [["#5a2a1a", "#ff4d6d"], ["#ff9933", "#ffffff"], ["#8ce99a", "#2e7d32"]].forEach(([col, label], i) => {
+    const bx = x + 18 + i * 7;
+    rect("#140c0c", bx - 1, top - 17, 6, 15);
+    rect(col, bx, top - 15, 4, 12);
+    rect(label, bx, top - 11, 4, 3);
+    rect("#140c0c", bx + 1, top - 20, 2, 3);
+    rect("#ffffff", bx + 1, top - 14, 1, 2);
+  });
+  // Cupcakes
+  for (const cx of [x + 2, x + 10]) {
+    rect("#140c0c", cx - 1, top - 9, 8, 7);
+    rect("#7ec8e3", cx, top - 6, 6, 4);
+    rect("#ff8fb5", cx, top - 9, 6, 3);
+    rect("#ff4d6d", cx + 2, top - 11, 2, 2);
+  }
+  // Pastel con velitas que titilan
+  drawSprite(Math.floor(time * 6) % 2 ? SPRITES.cake1 : SPRITES.cake2, PARTY_CAKE.x, PARTY_CAKE.y);
+  // Vasos rojos
+  for (const cx of [x + 72, x + 79]) {
+    rect("#140c0c", cx - 1, top - 10, 7, 9);
+    rect("#e5383b", cx, top - 9, 5, 7);
+    rect("#ffffff", cx, top - 9, 5, 1);
+  }
+  // Tazón de papitas y sándwiches
+  rect("#140c0c", x + 86, top - 7, 17, 6);
+  rect("#7ec8e3", x + 87, top - 6, 15, 4);
+  for (let k = 0; k < 5; k++) rect("#ffd166", x + 88 + k * 3, top - 9 - (k % 2), 3, 2);
+}
+
+// Gorrito de fiesta encima de la cabeza (cx = centro de la cabeza)
+function drawPartyHat(cx, y, col) {
+  for (let k = 0; k < 10; k++) {
+    const half = Math.floor(k / 2);
+    rect("#140c0c", cx - half - 1, y - 10 + k, half * 2 + 3, 1);
+    rect(k % 4 < 2 ? col : "#ffffff", cx - half, y - 10 + k, half * 2 + 1, 1);
+  }
+  rect("#ffffff", cx - 1, y - 12, 3, 2);
+}
+
+// Coronita de la cumpleañera
+function drawCrown() {
+  const bounce = girl.mood === "laugh" && girl.onGround ? laughBob(0.5) : 0;
+  const x = Math.round(girl.x) + 12, y = Math.round(girl.y) - 7 + bounce;
+  rect("#140c0c", x - 1, y - 1, 16, 8);
+  rect("#140c0c", x - 1, y - 4, 4, 4); rect("#140c0c", x + 5, y - 5, 4, 5); rect("#140c0c", x + 11, y - 4, 4, 4);
+  rect("#ffd166", x, y, 14, 6);
+  rect("#ffd166", x, y - 3, 2, 3); rect("#ffd166", x + 6, y - 4, 2, 4); rect("#ffd166", x + 12, y - 3, 2, 3);
+  rect("#e0a020", x, y + 4, 14, 2);
+  rect("#ff4d6d", x + 2, y + 1, 2, 2); rect("#7ec8e3", x + 6, y + 1, 2, 2); rect("#ff4d6d", x + 10, y + 1, 2, 2);
+}
+
+// Todas las que la estaban esperando, mirando hacia ella
+let crowd = [];
+function makeCrowd() {
+  return [
+    // detrás de la mesa
+    ["g1", 96, -14], ["g3", 118, -14], ["g6", 182, -14], ["g8", 204, -14], ["g2", 226, -14],
+    // a un lado
+    ["pony", 248, -2], ["g7", 272, -2], ["g4", 296, -2],
+    // al frente
+    ["best", 94, 14], ["bob", 196, 14], ["dress", 226, 14], ["g5", 256, 14], ["g9", 284, 14],
+  ].map(([key, x, df], i) => ({
+    key, x, feet: GROUND_Y + df, facing: -1, laugh: false, quiet: true, phase: i * 1.37, hop: 0, lift: 0,
+    hat: i % 3 !== 1 ? FLAG_COLORS[i % FLAG_COLORS.length] : null,
+  }));
+}
+
+function drawGuest(f) {
+  const y = drawFriend(f);
+  // Volteadas a la izquierda, el centro de la cabeza queda en la columna 7
+  if (f.hat) drawPartyHat(f.x + 15, y + 1, f.hat);
+}
+
+const party = {};
+function resetParty() {
+  Object.assign(party, {
+    door: 0, rays: 0, flash: 0, duck: 0, mode: "calm", shake: 0, dim: 0,
+    bigText: null, crown: false, highlight: false, joyTears: false, timer: 0,
+  });
+  crowd = [];
+}
+resetParty();
+
+// Cañón de confeti
+function popper(x, y, dir) {
+  Sound.pop();
+  for (let i = 0; i < 34; i++) {
+    particles.push({
+      type: "confetti", x, y, g: 150,
+      vx: dir * (30 + Math.random() * 90), vy: -(90 + Math.random() * 110),
+      color: CONFETTI_COLORS[(Math.random() * CONFETTI_COLORS.length) | 0], life: 3,
+    });
+  }
+}
+
+function floatText(text, x, y, color = "#ffe066", life = 1.4) {
+  const half = text.length * 4 + 16;   // que no se corte en las orillas
+  particles.push({ type: "text", text, color, x: Math.min(W - half, Math.max(half, x)), y, vx: 0, vy: -10, life });
+}
+
+function drawDoorScene() {
+  ctx.drawImage(houseBg, 0, 0);
+
+  // Siluetas que se asoman por las ventanas... y se agachan para no ser vistas
+  HOUSE_WINDOWS.forEach((w, wi) => {
+    ctx.save();
+    ctx.beginPath(); ctx.rect(w.x + 6, w.y, w.w - 12, w.h); ctx.clip();
+    for (let k = 0; k < 2; k++) {
+      const hx = w.x + 15 + k * 14;
+      const hy = Math.round(w.y + w.h - 9 + party.duck * 22 + Math.sin(time * 2.5 + wi * 2 + k * 1.3) * 1.5);
+      ctx.globalAlpha = 0.75;
+      pixelCircle(hx, hy, 6, "#6a3f5a");
+      rect("#6a3f5a", hx - 9, hy + 5, 18, 12);
+      ctx.globalAlpha = 1;
+    }
+    ctx.restore();
+    rect("#ffffff", w.x + w.w / 2 - 1, w.y, 2, w.h);
+    rect("#ffffff", w.x, w.y + w.h / 2 - 1, w.w, 2);
+  });
+
+  // Luz del farolito
+  ctx.globalAlpha = 0.12 + Math.sin(time * 3) * 0.02;
+  pixelCircle(PORCH_LAMP.x + 1, PORCH_LAMP.y + 4, 14, "#ffd27a");
+  ctx.globalAlpha = 1;
+
+  // Detrás de la puerta: pura luz dorada
+  const d = HOUSE_DOOR, h = DOOR_BOTTOM - d.top;
+  const glow = Math.min(1, party.door * 0.6 + party.rays * 0.6);
+  if (party.door > 0) {
+    rect("#fff4c8", d.x, d.top, d.w, h);
+    for (let k = 0; k < 14; k++)   // confeti que se alcanza a ver adentro
+      rect(CONFETTI_COLORS[k % CONFETTI_COLORS.length], d.x + 3 + ((k * 11) % (d.w - 6)), d.top + 6 + ((k * 17 + Math.floor(time * 20)) % (h - 10)), 2, 2);
+  }
+  // Rayos de luz que giran saliendo de la puerta
+  if (glow > 0) {
+    const cx = d.x + d.w / 2, cy = d.top + h / 2;
+    ctx.fillStyle = "#fff2b0";
+    for (let i = 0; i < 10; i++) {
+      const a = time * 0.5 + (i / 10) * Math.PI * 2;
+      ctx.globalAlpha = 0.3 * glow;
+      ctx.beginPath();
+      ctx.moveTo(cx, cy);
+      ctx.lineTo(cx + Math.cos(a - 0.13) * 300, cy + Math.sin(a - 0.13) * 300);
+      ctx.lineTo(cx + Math.cos(a + 0.13) * 300, cy + Math.sin(a + 0.13) * 300);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 0.2 * glow;
+    pixelCircle(cx, cy, 40, "#fff6d0");
+    pixelCircle(cx, cy, 24, "#ffffff");
+    ctx.globalAlpha = 1;
+  }
+  // La hoja de la puerta gira hacia adentro sobre la bisagra derecha
+  const pw = Math.max(3, Math.round(d.w * (1 - 0.88 * party.door)));
+  const px = d.x + d.w - pw;
+  rect("#140c0c", px - 1, d.top, pw + 1, h);
+  rect("#b0603a", px, d.top + 1, pw - 1, h - 1);
+  if (pw > 14) {
+    rect("#8e4a2a", px + 4, d.top + 6, pw - 9, 24);
+    rect("#8e4a2a", px + 4, d.top + 36, pw - 9, 24);
+    rect("#c07048", px + 5, d.top + 7, pw - 11, 1);
+    rect("#c07048", px + 5, d.top + 37, pw - 11, 1);
+    rect("#140c0c", px + 1, d.top + 36, 4, 4);
+    rect("#ffd166", px + 2, d.top + 37, 2, 2);                                  // perilla
+    rect("#ff4d6d", px + pw / 2 - 4, d.top + 1, 8, 2);                            // moñito
+  }
+  ctx.globalAlpha = party.door * 0.4;
+  rect("#140c0c", px, d.top + 1, pw - 1, h - 1);
+  ctx.globalAlpha = 1;
+
+  drawGirl();
+}
+
+function drawParty() {
+  ctx.drawImage(partyBg, 0, 0);
+
+  // Letrero con letras de colores que van cambiando
+  const lines = ["¡FELIZ CUMPLE", `${CONFIG.name.toUpperCase()}!`];
+  rect("#140c0c", 102, 25, 116, 28);
+  rect("#ffffff", 103, 26, 114, 26);
+  rect("#ff8fb5", 103, 26, 114, 2); rect("#ff8fb5", 103, 50, 114, 2);
+  ctx.font = "8px 'Press Start 2P', monospace";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "alphabetic";
+  lines.forEach((line, li) => {
+    const chars = [...line];
+    chars.forEach((ch, i) => {
+      ctx.fillStyle = BANNER_COLORS[(i + li * 3 + Math.floor(time * 4)) % BANNER_COLORS.length];
+      ctx.fillText(ch, 160 - chars.length * 4 + i * 8 + 4, 38 + li * 11);
+    });
+  });
+
+  BALLOONS.forEach(drawBalloon);
+
+  // Las de atrás quedan tapadas por la mesa
+  const back = crowd.filter((f) => f.feet < GROUND_Y - 6);
+  back.forEach(drawGuest);
+  drawTable();
+
+  const people = [...crowd.filter((f) => !back.includes(f)).map((f) => ({ feet: f.feet, draw: () => drawGuest(f) })),
+    { feet: girl.y + GIRL_H, draw: () => { drawGirl(); if (party.crown) drawCrown(); } }];
+  people.sort((a, b) => a.feet - b.feet).forEach((p) => p.draw());
+
+  // Baja la luz y un foco la ilumina solo a ella
+  if (party.dim > 0) {
+    const cx = girl.x + GIRL_HALF, cy = girl.y + 20;
+    ctx.fillStyle = `rgba(14,6,30,${0.62 * party.dim})`;
+    ctx.beginPath();
+    ctx.rect(0, 0, W, H);
+    ctx.arc(cx, cy, 34, 0, Math.PI * 2, true);
+    ctx.fill();
+    ctx.globalAlpha = 0.1 * party.dim;
+    ctx.fillStyle = "#fff2b0";
+    ctx.beginPath();
+    ctx.moveTo(cx - 6, 0); ctx.lineTo(cx + 6, 0); ctx.lineTo(cx + 34, cy + 20); ctx.lineTo(cx - 34, cy + 20);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+  }
+}
+
+// Lo que va encima de todo: el letrerote de "¡SORPRESA!" y el destello blanco
+function drawPartyOverlay() {
+  if (party.bigText) {
+    const t = party.bigText.t;
+    const s = t < 0.25 ? (t / 0.25) * 1.4 : t < 0.4 ? 1.4 - ((t - 0.25) / 0.15) * 0.4 : 1;
+    ctx.save();
+    ctx.globalAlpha = t > 2.2 ? Math.max(0, 1 - (t - 2.2) / 0.5) : 1;
+    ctx.translate(W / 2, 80);
+    ctx.scale(s, s);
+    ctx.font = "16px 'Press Start 2P', monospace";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.lineWidth = 4;
+    ctx.strokeStyle = "#140c0c";
+    ctx.strokeText(party.bigText.text, 0, 0);
+    ctx.fillStyle = FLAG_COLORS[Math.floor(time * 8) % FLAG_COLORS.length];
+    ctx.fillText(party.bigText.text, 0, 0);
+    ctx.restore();
+  }
+  if (party.flash > 0) {
+    ctx.globalAlpha = party.flash;
+    rect("#ffffff", 0, 0, W, H);
+    ctx.globalAlpha = 1;
+  }
+}
+
+function updateDoorScene(dt) {
+  // Al abrirse la puerta se escapan brillitos y confeti
+  if (party.door > 0.15 && Math.random() < dt * 30) {
+    const d = HOUSE_DOOR;
+    const x = d.x + 4 + Math.random() * (d.w - 8), y = d.top + 6 + Math.random() * 56;
+    if (Math.random() < 0.5) particles.push({ type: "spark", x, y, vx: (Math.random() - 0.5) * 60, vy: -10 - Math.random() * 30, life: 0.8 });
+    else particles.push({
+      type: "confetti", x, y, g: 60, vx: (Math.random() - 0.5) * 90, vy: -30 - Math.random() * 50, life: 2,
+      color: CONFETTI_COLORS[(Math.random() * CONFETTI_COLORS.length) | 0],
+    });
+  }
+}
+
+const CHEERS = ["¡YEI!", "¡WIII!", "¡FELIZ DÍA!", "¡TQM!", "¡BRAVO!"];
+function updateParty(dt) {
+  const cheering = party.mode === "cheer";
+  for (const f of crowd) {
+    f.hop = Math.max(0, f.hop - dt);
+    f.laugh = cheering;
+    f.lift = cheering ? Math.round(Math.max(0, Math.sin(time * 6 + f.phase)) * 3) * 2 : 0;
+  }
+  if (cheering && (party.timer -= dt) <= 0) {
+    party.timer = 0.3 + Math.random() * 0.3;
+    const f = crowd[(Math.random() * crowd.length) | 0];
+    if (f) {
+      if (Math.random() < 0.3) burstHearts(f.x + GIRL_HALF, f.feet - GIRL_H, 1);
+      else floatText(CHEERS[(Math.random() * CHEERS.length) | 0], f.x + GIRL_HALF, f.feet - GIRL_H - 4);
+    }
+    spawnConfetti();
+  }
+  const best = crowd.find((f) => f.key === "best");
+  if (party.highlight && best && Math.random() < dt * 14) spawnSparkles(best);
+  // Lagrimitas de felicidad
+  if (party.joyTears && Math.random() < dt * 1.6)
+    particles.push({ type: "tear", x: girl.x + 30, y: girl.y + 12, vx: 4, vy: 6, life: 0.9 });
+  // Corazones que flotan mientras le dicen el mensaje
+  if (party.dim > 0.5 && Math.random() < dt * 3)
+    particles.push({ type: "heart", x: Math.random() * W, y: H + 4, vx: (Math.random() - 0.5) * 6, vy: -16, life: 7 });
+  if (party.crown && Math.random() < dt * 4)
+    particles.push({ type: "spark", x: girl.x + 12 + Math.random() * 14, y: girl.y - 8 + Math.random() * 6, vx: 0, vy: -6, life: 0.5 });
+  if (party.bigText) party.bigText.t += dt;
 }
 
 // =====================================================
@@ -524,13 +1285,14 @@ const girl = {
   onLand: null,
   jumpDelay: 0,       // se agacha un instante antes de despegar
   landTimer: 0,       // se queda agachada un instante al aterrizar
-  pose: "stand",      // stand | sit
+  pose: "stand",      // stand | sit | bench
+  benchFace: "sad",   // sad | look | smile (sentada en la banca)
   behindDoor: false,  // del otro lado de la puerta de vidrio
   reach: false,       // brazo estirado (deslizando la puerta)
   sitAnim: "type",    // type | sigh
   bodyOffset: 0,      // sube (-1) o baja (+1) los hombros al suspirar
   sweat: null,        // { t } gota de sudor sobre la cabeza
-  mood: null,         // null | chat | laugh | angry (platicando de lado)
+  mood: null,         // null | chat | laugh | angry | smile (de lado)
 };
 
 const GRAVITY = 520;
@@ -612,6 +1374,7 @@ function runFrameIndex() {
 }
 
 function girlFrame() {
+  if (girl.pose === "bench") return SPRITES.bench[girl.benchFace];
   if (girl.pose === "sit") {
     if (girl.sitAnim === "sigh" || girl.blinkTimer % 3 < 0.15) return SPRITES.sitSigh;
     return [SPRITES.sitA, SPRITES.sitB, SPRITES.sitC][typingPose()];
@@ -651,7 +1414,7 @@ function typingPose() {
 }
 
 function drawGirl() {
-  if (girl.pose === "sit") return drawSittingGirl();
+  if (girl.pose === "sit" || girl.pose === "bench") return drawSittingGirl();
   // sombra (a la altura de sus pies; en el aire se queda en el piso)
   const air = (GIRL_TOP - girl.y) / 60;
   const floorY = girl.onGround ? girl.y + GIRL_H : GROUND_Y;
@@ -718,30 +1481,8 @@ async function sigh() {
 }
 
 // =====================================================
-//  OBJETOS: pastel, corazones, confeti
+//  PARTÍCULAS: corazones, confeti, polvito...
 // =====================================================
-let cake = null; // { x, y, vy, landed }
-
-function dropCake(x) {
-  return new Promise((resolve) => {
-    cake = { x, y: -30, vy: 0, landed: false, onLand: resolve };
-  });
-}
-
-function updateCake(dt) {
-  if (!cake || cake.landed) return;
-  cake.vy += GRAVITY * dt;
-  cake.y += cake.vy * dt;
-  const floor = GROUND_Y - 24;
-  if (cake.y >= floor) {
-    cake.y = floor;
-    cake.landed = true;
-    Sound.select();
-    burstHearts(cake.x + 16, cake.y);
-    cake.onLand && cake.onLand();
-  }
-}
-
 let particles = [];
 const CONFETTI_COLORS = ["#ffe066", "#ff4d6d", "#7ec8e3", "#8ce99a", "#ffffff", "#ff8fb5"];
 
@@ -784,6 +1525,8 @@ function updateParticles(dt) {
     p.y += p.vy * dt;
     p.life -= dt;
     if (p.type === "heart") p.vy -= 10 * dt; // flotan hacia arriba
+    if (p.type === "tear") p.vy += 90 * dt;  // las lágrimas caen
+    if (p.g) p.vy += p.g * dt;               // confeti de los cañones: sube y cae
   }
   particles = particles.filter((p) => p.life > 0 && p.y < H + 10);
 }
@@ -827,6 +1570,18 @@ function drawParticles() {
       ctx.globalAlpha = Math.min(1, p.life) * 0.8;
       ctx.fillStyle = "#ffffff";
       ctx.fillRect(Math.round(p.x), Math.round(p.y), 3, 3);
+      ctx.globalAlpha = 1;
+    } else if (p.type === "rain") {
+      ctx.globalAlpha = 0.55;
+      ctx.fillStyle = "#9fb8e8";
+      ctx.fillRect(Math.round(p.x), Math.round(p.y), 1, 4);
+      ctx.globalAlpha = 1;
+    } else if (p.type === "tear") {
+      ctx.globalAlpha = Math.min(1, p.life * 2);
+      ctx.fillStyle = "#9fd4ff";
+      ctx.fillRect(Math.round(p.x), Math.round(p.y), 1, 2);
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(Math.round(p.x), Math.round(p.y), 1, 1);
       ctx.globalAlpha = 1;
     } else if (p.type === "dust") {
       ctx.globalAlpha = Math.min(1, p.life * 2) * 0.7;
@@ -980,43 +1735,203 @@ async function chapterFriends() {
   friends.forEach((f) => { f.laugh = true; });
   heartsOverFriends();
   await say("¡Pero así la quiere, igual que a cada una de ellas!");
+  await say("Y aun entre tantas risas, no dejaba de pensar que algo especial iba a pasar...");
   await wait(600);
 }
 
-// De regreso afuera, donde encuentra el pastel
-async function chapterCake() {
+// De noche, sola en el mirador: un mensaje para ella
+async function chapterNight() {
   await changeScene(() => {
-    scene = "outdoor";
-    Sound.playMusic("search");
+    scene = "night";
+    Sound.playMusic("rain");
+    Sound.rain(true);
+    resetNight();
+    tweens = [];
+    friends = [];
+    highlightBest = false;
     girl.pose = "stand";
     girl.mood = null;
-    friends = [];
+    girl.bodyOffset = 0;
+    girl.facing = 1;
     girl.x = -40;
     girl.y = GIRL_TOP;
   });
 
-  await walkTo(240, true);
-  await say("Buscó por aquí...");
-  await walkTo(60, true);
-  await say("...y buscó por allá...");
-  await walkTo(W / 2 - 40, true);
-  girl.facing = 1;
+  // Llega caminando despacito y se sienta en la banca, cabizbaja
+  await walkTo(BENCH_SPOT.x);
+  await wait(300);
+  girl.pose = "bench";
+  girl.benchFace = "sad";
+  girl.bodyOffset = 1;
+  await wait(900);
+  await say("Pero no todos los días son de risas...");
+  night.tears = true;
+  await say(`A veces ${CONFIG.name} también se siente triste, preocupada... y hasta con ganas de llorar.`);
+  await benchSigh();
+  await say("Y está bien sentirse así: hasta las personas más fuertes tienen días grises.");
+  night.tears = false;
 
-  Sound.stopMusic(0.8); // silencio de suspenso antes del pastel
-  await say("Hasta que de pronto...");
-  await jump();
-  await dropCake(W / 2 + 10);
+  // Para de llover, se abren las nubes y sale la luna
+  Sound.rain(false);
+  Sound.playMusic("hope");
+  tween(night, "rain", 0, 3);
+  await tween(night, "clear", 1, 3.5);
+  girl.bodyOffset = 0;
+  girl.benchFace = "look";
+  await wait(500);
+  await say(`Pero nunca olvides esto, ${CONFIG.name}...`);
+
+  // Cada parte del corazón: su familia, sus amigas y quienes la quieren
+  await lightHeart(4);
+  await say("Tu sonrisa ilumina la vida de tu familia...");
+  await lightHeart(8);
+  await say("...de tus amigas...");
+  await lightHeart(12);
+  tween(night, "glow", 1, 1.2);
+  tween(night, "fireflies", 1, 3);
+  burstHearts(HEART_C.x, HEART_C.y, 10);
+  Sound.select();
+  await say("...y de todas las personas que te quieren y que son importantes para ti.");
+
+  girl.benchFace = "smile";
+  burstHearts(girl.x + GIRL_HALF, girl.y + 6, 5);
+  await say("Así que no dejes de sonreír, ni siquiera en los días difíciles: tu sonrisa es tu luz.");
+
+  // Se pone de pie, firme, con un brillo a su alrededor
+  girl.pose = "stand";
+  girl.mood = "smile";
+  girl.y = GIRL_TOP;
+  dustPuff(girl.x + GIRL_HALF - 6, GROUND_Y - 2, -1);
+  dustPuff(girl.x + GIRL_HALF + 6, GROUND_Y - 2, 1);
+  Sound.jump();
+  night.aura = true;
+  girl.mood = null;
+  await walkTo(BENCH_SPOT.x + 22);   // da unos pasos al frente
+  girl.mood = "smile";
   await wait(400);
-  await jump();
+  await say("Mantente fuerte y firme ante cualquier adversidad: eres mucho más valiente de lo que crees.");
 
-  await say(`¡Un pastel! ¡Hoy es el cumpleaños de ${CONFIG.name}!`);
+  night.shoot = { t: 0 };
+  Sound.shootingStar();
+  await wait(1200);
+  await say("Porque después de cada tormenta, siempre vuelve a salir el sol...");
+  await tween(night, "dawn", 1, 3);
+  await say("...y tú siempre vuelves a brillar.");
+  await wait(800);
+  night.aura = false;
+}
+
+// La puerta... y la fiesta sorpresa
+async function chapterParty() {
+  await changeScene(() => {
+    scene = "door";
+    Sound.playMusic("search");
+    resetParty();
+    night.aura = false;
+    girl.pose = "stand";
+    girl.mood = null;
+    girl.reach = false;
+    girl.facing = 1;
+    girl.x = -40;
+    girl.y = GIRL_TOP;
+  });
+
+  // Llega hasta la puerta; adentro alguien se asoma por la ventana... y se esconde
+  await walkTo(HOUSE_DOOR.x + 5 - 35);
+  floatText("¡Shhh!", 78, 60, "#ffffff", 1.6);
+  tween(party, "duck", 1, 0.5);
+  await wait(700);
+  await say(`Al final del día, algo llevó a ${CONFIG.name} hasta esta puerta...`);
+  floatText("?", girl.x + 24, girl.y - 4, "#ffffff", 1.8);
+  await wait(500);
+  await say(`¿Y ahora, ${CONFIG.name}... por qué sientes que hoy es un día especial?`);
+
+  // Silencio, estira la mano y abre: sale la luz
+  Sound.stopMusic(0.8);
+  await wait(700);
+  girl.reach = true;
+  await wait(400);
+  Sound.door();
+  tween(party, "door", 1, 1.6);
+  await wait(500);
+  Sound.reveal();
+  await tween(party, "rays", 1, 1.3);
+  await tween(party, "flash", 1, 0.45);
+
+  // Detrás del destello: ¡la fiesta!
+  scene = "party";
+  particles = [];
+  crowd = makeCrowd();
+  girl.reach = false;
+  girl.x = 4;
+  girl.y = GIRL_TOP;
+  Sound.playMusic("celebration");
+  tween(party, "flash", 0, 0.9);
+  await walkTo(48);
+
+  party.bigText = { t: 0, text: "¡SORPRESA!" };
+  party.shake = 0.5;
+  party.mode = "cheer";
+  popper(PARTY_TABLE.x - 6, PARTY_TABLE.top - 4, -1);
+  popper(PARTY_TABLE.x + PARTY_TABLE.w + 6, PARTY_TABLE.top - 4, 1);
+  Sound.cheer();
+  floatText("!", girl.x + 24, girl.y - 4, "#ff4d6d", 1.2);
+  await jump();
+  girl.mood = "smile";
+  await wait(1600);
+
+  party.crown = true;
+  Sound.select();
+  for (let i = 0; i < 10; i++)
+    particles.push({ type: "spark", x: girl.x + 8 + Math.random() * 24, y: girl.y - 10 + Math.random() * 10, vx: 0, vy: -12, life: 0.8 });
+  await say(`¡Porque hoy es tu cumpleaños, ${CONFIG.name}!`);
+  crowd.forEach((f) => burstHearts(f.x + GIRL_HALF, f.feet - GIRL_H - 2, 2));
+  await say("Y todas las personas que te quieren están aquí para celebrarte.");
+
+  const best = crowd.find((f) => f.key === "best");
+  party.highlight = true;
+  best.hop = 0.5;
+  Sound.jump();
+  await say("Tus amigas de siempre (sí, también la loquita)...");
+  party.highlight = false;
+  popper(300, 120, -1);
+  await say("...y muchas personas más que te estiman y agradecen tenerte en su vida.");
+
+  girl.mood = "laugh";
+  party.joyTears = true;
+  await say("Tanto cariño junto hizo que se le escaparan unas lagrimitas de felicidad.");
+  party.joyTears = false;
+  girl.mood = "smile";
+
+  // El mensaje final: baja la luz, la música se vuelve suave y flotan corazones
+  party.mode = "calm";
+  Sound.playMusic("hope");
+  await tween(party, "dim", 1, 1.5);
+  await say(`${CONFIG.name}: esta pequeña historia es solo un pedacito de todo lo que eres.`);
+  await say("Eres trabajadora y dedicada, y das lo mejor de ti en todo lo que haces.");
+  await say("Tienes una risa que contagia y una sonrisa que ilumina a todos los que te rodean.");
+  await say("Y aunque haya días grises, siempre encuentras la fuerza para volver a brillar.");
+  await say("Nunca olvides que no estás sola: aquí hay muchas personas que te quieren de verdad.");
+  await say("Gracias por ser exactamente como eres. El mundo es más bonito contigo en él.");
+  await say("Que este nuevo año de vida te regale tantas sonrisas como las que tú le regalas a los demás.");
+
+  // ¡Y a celebrar!
+  await tween(party, "dim", 0, 1);
+  party.mode = "cheer";
+  girl.mood = "laugh";
+  party.shake = 0.4;
+  popper(PARTY_TABLE.x - 6, PARTY_TABLE.top - 4, -1);
+  popper(PARTY_TABLE.x + PARTY_TABLE.w + 6, PARTY_TABLE.top - 4, 1);
+  Sound.cheer();
+  await wait(1200);
 }
 
 const CHAPTERS = [
   { name: "Inicio", run: chapterIntro },
   { name: "Oficina", run: chapterOffice },
   { name: "Amigas", run: chapterFriends },
-  { name: "Pastel", run: chapterCake },
+  { name: "Noche", run: chapterNight },
+  { name: "Fiesta", run: chapterParty },
 ];
 
 async function story(from = 0) {
@@ -1031,17 +1946,17 @@ function finale() {
   $("finale-name").textContent = `${CONFIG.name}`;
   finaleEl.classList.remove("hidden");
   Sound.stopMusic(0.3);
-  const songLength = Sound.birthdaySong();
-  // Al terminar "Cumpleaños feliz" sigue la fiesta
+  const fanfareLength = Sound.fanfare();
+  // Después de la fanfarria sigue la fiesta
   clearTimeout(partyTimer);
-  partyTimer = setTimeout(() => state === "finale" && Sound.playMusic("party"), songLength * 1000 + 600);
+  partyTimer = setTimeout(() => state === "finale" && Sound.playMusic("celebration"), fanfareLength * 1000 + 200);
   burstHearts(girl.x + GIRL_HALF, girl.y, 12);
 }
 
 function resetScene() {
   clearTimeout(partyTimer);
-  cake = null;
   particles = [];
+  resetParty();
   scene = "outdoor";
   curtain.open = 0;
   curtain.done = null;
@@ -1053,6 +1968,9 @@ function resetScene() {
   girl.mood = null;
   friends = [];
   highlightBest = false;
+  resetNight();
+  tweens = [];
+  Sound.rain(false);
   door.open = 0;
   door.done = null;
   door.carry = null;
@@ -1141,11 +2059,10 @@ function loop(now) {
     confettiTimer += dt;
     while (confettiTimer > 0.04) { spawnConfetti(); confettiTimer -= 0.04; }
     if (girl.onGround && Math.random() < 0.02) jump();
-    if (Math.random() < 0.02 && cake) burstHearts(cake.x + 16, cake.y, 1);
+    if (Math.random() < 0.03 && scene === "party") burstHearts(PARTY_CAKE.x + 16, PARTY_CAKE.y, 1);
   }
 
   updateGirl(dt);
-  updateCake(dt);
   updateParticles(dt);
   updateCurtain(dt);
   for (const c of clouds) { c.x += c.s * 60 * dt; if (c.x > W) c.x = -30; }
@@ -1154,6 +2071,11 @@ function loop(now) {
     if (girl.sweat.fade !== null && (girl.sweat.fade += dt) >= 0.4) girl.sweat = null;
   }
   updateDoors(dt);
+  updateTweens(dt);
+  if (scene === "night") updateNight(dt);
+  if (scene === "door") updateDoorScene(dt);
+  if (scene === "party") updateParty(dt);
+  party.shake = Math.max(0, party.shake - dt);
   // Cada vez que baja la mano sobre el teclado: brillo en la tecla y un clic suave
   const typing = scene === "office" && girl.pose === "sit" && girl.sitAnim === "type";
   const pose = typing ? typingPose() : 0;
@@ -1169,10 +2091,18 @@ function loop(now) {
     if (girl.mood === "angry") spawnSteam(dt);
   }
 
-  // Dibujar
-  if (scene === "hallway") {
+  // Dibujar (con temblor de pantalla en la sorpresa)
+  ctx.save();
+  if (party.shake > 0) ctx.translate(Math.round((Math.random() - 0.5) * 6 * party.shake), Math.round((Math.random() - 0.5) * 6 * party.shake));
+  if (scene === "party") {
+    drawParty();
+  } else if (scene === "door") {
+    drawDoorScene();
+  } else if (scene === "hallway") {
     ctx.drawImage(hallwayBg, 0, 0);
     drawGroup();
+  } else if (scene === "night") {
+    drawNight();
   } else if (scene === "office") {
     ctx.drawImage(officeBg, 0, 0);
     // Mientras está del otro lado del vidrio, el vidrio y la hoja van encima de ella
@@ -1182,10 +2112,11 @@ function loop(now) {
   } else {
     ctx.drawImage(background, 0, 0);
     clouds.forEach((c) => drawCloud(Math.round(c.x), c.y));
-    if (cake) drawSprite(Math.floor(time * 6) % 2 ? SPRITES.cake1 : SPRITES.cake2, cake.x, cake.y);
     drawGirl();
   }
   drawParticles();
+  ctx.restore();
+  drawPartyOverlay();
   drawCurtain();
 
   requestAnimationFrame(loop);

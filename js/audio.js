@@ -10,6 +10,7 @@ const Sound = (() => {
     if (ctx.state === "suspended") ctx.resume();
     // Si se pidió música antes de poder crear el audio, arranca ahora
     if (wanted && !music) startTrack(wanted);
+    if (rainWanted && !rainSound) rain(true);
   }
 
   function tone(freq, duration = 0.1, type = "square", volume = 0.06, when = 0) {
@@ -64,25 +65,6 @@ const Sound = (() => {
   const blip = () => tone(880, 0.03, "square", 0.025);
   const step = () => tone(140, 0.03, "triangle", 0.04);
   const select = () => { tone(660, 0.08); tone(990, 0.12, "square", 0.06, 0.08); };
-
-  // Melodía de "Cumpleaños feliz" (dominio público)
-  function birthdaySong() {
-    const N = { G4: 392, A4: 440, B4: 494, C5: 523, D5: 587, E5: 659, F5: 698, G5: 784 };
-    const song = [
-      ["G4", .75], ["G4", .25], ["A4", 1], ["G4", 1], ["C5", 1], ["B4", 2],
-      ["G4", .75], ["G4", .25], ["A4", 1], ["G4", 1], ["D5", 1], ["C5", 2],
-      ["G4", .75], ["G4", .25], ["G5", 1], ["E5", 1], ["C5", 1], ["B4", 1], ["A4", 2],
-      ["F5", .75], ["F5", .25], ["E5", 1], ["C5", 1], ["D5", 1], ["C5", 2],
-    ];
-    const beat = 0.32;
-    let t = 0;
-    for (const [n, d] of song) {
-      tone(N[n], d * beat * 0.95, "square", 0.05, t);
-      tone(N[n] / 2, d * beat * 0.95, "triangle", 0.05, t);
-      t += d * beat;
-    }
-    return t; // duración en segundos
-  }
 
   // =====================================================
   //  MÚSICA DE FONDO — va por un canal aparte para no tocar los efectos
@@ -140,16 +122,49 @@ const Sound = (() => {
         { type: "hat", vol: 0.015, seq: ". . x . . . x ." },
       ],
     },
-    // Final: fiesta después de "Cumpleaños feliz"
-    party: {
-      bpm: 120,
+    // Noche lluviosa: lenta, suave y nostálgica
+    rain: {
+      bpm: 66,
       voices: [
-        { type: "triangle", vol: 0.022, gate: 0.6, seq:
-          "C5 E5 G5 C6 G5 E5 C5 E5 | B4 D5 G5 B5 G5 D5 B4 D5 | A4 C5 E5 A5 E5 C5 A4 C5 | F4 A4 C5 F5 C5 A4 F4 A4" },
-        { type: "triangle", vol: 0.045, gate: 0.7, seq:
-          "C3 . . C3 . . G2 . | G2 . . G2 . . D3 . | A2 . . A2 . . E3 . | F2 . . F2 . . C3 ." },
-        { type: "kick", vol: 0.07, seq: "x . . . x . . ." },
-        { type: "hat", vol: 0.015, seq: ". x . x . x . x" },
+        { type: "sine", vol: 0.012, gate: 1, attack: 0.6, seq:
+          "A3+C4+E4:8 . . . . . . . | F3+A3+C4:8 . . . . . . . | D3+F3+A3:8 . . . . . . . | E3+G#3+B3:8 . . . . . . ." },
+        { type: "triangle", vol: 0.02, gate: 0.95, attack: 0.05, seq:
+          "E5:3 . . D5 C5:4 . . . | A4:8 . . . . . . . | F4:3 . . A4 D5:4 . . . | B4:4 . . . G#4:4 . . ." },
+        { type: "triangle", vol: 0.03, gate: 0.9, seq:
+          "A2:8 . . . . . . . | F2:8 . . . . . . . | D2:8 . . . . . . . | E2:8 . . . . . . ." },
+      ],
+    },
+    // Esperanza: cálida y luminosa, cuando sale la luna
+    hope: {
+      bpm: 84,
+      voices: [
+        { type: "sine", vol: 0.011, gate: 1, attack: 0.5, seq:
+          "C4+E4+G4:8 . . . . . . . | G3+B3+D4:8 . . . . . . . | A3+C4+E4:8 . . . . . . . | F3+A3+C4:8 . . . . . . ." },
+        { type: "sine", vol: 0.016, gate: 0.7, seq:
+          "C5 E5 G5 E5 C5 E5 G5 E5 | B4 D5 G5 D5 B4 D5 G5 D5 | A4 C5 E5 C5 A4 C5 E5 C5 | A4 C5 F5 C5 A4 C5 F5 C5" },
+        { type: "triangle", vol: 0.024, gate: 0.9, seq:
+          "G5:3 . . E5 C6:4 . . . | B5:3 . . G5 D5:4 . . . | C5:3 . . E5 A5:4 . . . | A5:2 . G5 . F5 . E5 ." },
+        { type: "triangle", vol: 0.035, gate: 0.8, seq:
+          "C3:4 . . . G2:4 . . . | G2:4 . . . D3:4 . . . | A2:4 . . . E2:4 . . . | F2:4 . . . C3:4 . . ." },
+      ],
+    },
+    // Fiesta sorpresa: alegre, brillante y para brincar
+    celebration: {
+      bpm: 140,
+      voices: [
+        { type: "square", vol: 0.016, gate: 0.6, seq:
+          "C5 . E5 G5 . E5 C6 . | A5 . G5 . E5 . C5 . | D5 . F5 A5 . F5 D6 . | C6 . B5 . G5 . . . | " +
+          "E5 . G5 C6 . G5 E6 . | D6 . C6 . A5 . F5 . | G5 . A5 B5 . D6 C6 . | C6:2 . G5 C6:4 . . . ." },
+        { type: "triangle", vol: 0.012, gate: 0.4, seq:
+          ". C4+E4+G4 . C4+E4+G4 . C4+E4+G4 . C4+E4+G4 | . A3+C4+E4 . A3+C4+E4 . A3+C4+E4 . A3+C4+E4 | " +
+          ". D4+F4+A4 . D4+F4+A4 . D4+F4+A4 . D4+F4+A4 | . B3+D4+G4 . B3+D4+G4 . B3+D4+G4 . B3+D4+G4 | " +
+          ". C4+E4+G4 . C4+E4+G4 . C4+E4+G4 . C4+E4+G4 | . A3+C4+F4 . A3+C4+F4 . A3+C4+F4 . A3+C4+F4 | " +
+          ". B3+D4+G4 . B3+D4+G4 . B3+D4+G4 . B3+D4+G4 | . C4+E4+G4 . C4+E4+G4 . C4+E4+G4 . C4+E4+G4" },
+        { type: "triangle", vol: 0.045, gate: 0.6, seq:
+          "C3 . C3 G2 C3 . G2 . | A2 . A2 E3 A2 . E3 . | D3 . D3 A2 D3 . A2 . | G2 . G2 D3 G2 . B2 . | " +
+          "C3 . C3 G2 C3 . G2 . | F2 . F2 C3 F2 . C3 . | G2 . G2 D3 G2 . D3 . | C3 . G2 . C3 . . ." },
+        { type: "kick", vol: 0.08, seq: "x . . . x . . ." },
+        { type: "hat", vol: 0.02, seq: ". x . x . x . x" },
       ],
     },
   };
@@ -310,5 +325,128 @@ const Sound = (() => {
     music = null;
   }
 
-  return { init, jump, blip, select, step, sigh, curtain, door, key, birthdaySong, playMusic, stopMusic };
+  // Lluvia: ruido filtrado en bucle que entra y sale con fundido
+  let rainSound = null;
+  let rainWanted = false;
+  function rain(on) {
+    rainWanted = on;
+    if (!ctx) return;
+    const t = ctx.currentTime;
+    if (on && !rainSound) {
+      const buf = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate);
+      const data = buf.getChannelData(0);
+      for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
+      const src = ctx.createBufferSource();
+      const lp = ctx.createBiquadFilter();
+      const g = ctx.createGain();
+      src.buffer = buf;
+      src.loop = true;
+      lp.type = "lowpass";
+      lp.frequency.value = 1400;
+      g.gain.setValueAtTime(0, t);
+      g.gain.linearRampToValueAtTime(0.05, t + 1.5);
+      src.connect(lp).connect(g).connect(ctx.destination);
+      src.start(t);
+      rainSound = { src, g };
+    } else if (!on && rainSound) {
+      const { src, g } = rainSound;
+      g.gain.cancelScheduledValues(t);
+      g.gain.setValueAtTime(g.gain.value, t);
+      g.gain.linearRampToValueAtTime(0, t + 2.5);
+      src.stop(t + 2.6);
+      rainSound = null;
+    }
+  }
+
+  // Destello de estrellita: dos notas agudas y suaves
+  const twinkle = (k = 0) => {
+    const base = [1047, 1175, 1319, 1568, 1760][k % 5];
+    tone(base, 0.25, "sine", 0.04);
+    tone(base * 1.5, 0.35, "sine", 0.025, 0.07);
+  };
+  // Estrella fugaz: barrido que cae
+  const shootingStar = () => sweep(2400, 500, 1, "sine", 0.04);
+
+  // Ruido blanco largo para el vitoreo
+  function noiseBuffer(sec) {
+    const buf = ctx.createBuffer(1, ctx.sampleRate * sec, ctx.sampleRate);
+    const data = buf.getChannelData(0);
+    for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
+    return buf;
+  }
+
+  // Revelación mágica al abrir la puerta: arpegio que sube y brilla
+  function reveal() {
+    [523, 659, 784, 1047, 1319, 1568, 2093].forEach((f, i) => {
+      tone(f, 0.5, "sine", 0.045, i * 0.07);
+      tone(f * 2, 0.3, "triangle", 0.012, i * 0.07 + 0.03);
+    });
+  }
+
+  // Cañón de confeti: chasquido de ruido y un "pop" agudo
+  function pop() {
+    if (!ctx) return;
+    const t = ctx.currentTime;
+    const src = ctx.createBufferSource();
+    const bp = ctx.createBiquadFilter();
+    const g = ctx.createGain();
+    src.buffer = noiseBuffer(0.2);
+    bp.type = "bandpass";
+    bp.frequency.value = 2500;
+    g.gain.setValueAtTime(0.12, t);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.15);
+    src.connect(bp).connect(g).connect(ctx.destination);
+    src.start(t);
+    sweep(900, 1800, 0.08, "square", 0.03);
+  }
+
+  // Vitoreo de la gente: ruido que sube y baja con muchos "¡yei!" agudos
+  function cheer() {
+    if (!ctx) return;
+    const t = ctx.currentTime;
+    const src = ctx.createBufferSource();
+    const bp = ctx.createBiquadFilter();
+    const g = ctx.createGain();
+    src.buffer = noiseBuffer(2.5);
+    bp.type = "bandpass";
+    bp.frequency.value = 1400;
+    bp.Q.value = 0.7;
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.linearRampToValueAtTime(0.06, t + 0.25);
+    g.gain.linearRampToValueAtTime(0.035, t + 1.2);
+    g.gain.linearRampToValueAtTime(0.0001, t + 2.4);
+    src.connect(bp).connect(g).connect(ctx.destination);
+    src.start(t);
+    for (let i = 0; i < 12; i++) {
+      const f = 700 + Math.random() * 600;
+      const s = ctx.currentTime + Math.random() * 1.4;
+      const osc = ctx.createOscillator();
+      const og = ctx.createGain();
+      osc.type = "triangle";
+      osc.frequency.setValueAtTime(f, s);
+      osc.frequency.exponentialRampToValueAtTime(f * 1.5, s + 0.18);
+      og.gain.setValueAtTime(0.0001, s);
+      og.gain.linearRampToValueAtTime(0.015, s + 0.03);
+      og.gain.exponentialRampToValueAtTime(0.0001, s + 0.22);
+      osc.connect(og).connect(ctx.destination);
+      osc.start(s);
+      osc.stop(s + 0.25);
+    }
+  }
+
+  // Fanfarria final (devuelve su duración en segundos)
+  function fanfare() {
+    const N = { G4: 392, C5: 523, E5: 659, G5: 784, A5: 880, C6: 1047 };
+    const notes = [["G4", 0, 0.12], ["C5", 0.12, 0.12], ["E5", 0.24, 0.12], ["G5", 0.36, 0.3],
+      ["E5", 0.7, 0.12], ["G5", 0.82, 0.12], ["A5", 0.94, 0.12], ["C6", 1.06, 0.9]];
+    for (const [n, at, d] of notes) {
+      tone(N[n], d, "square", 0.05, at);
+      tone(N[n] / 2, d, "triangle", 0.05, at);
+    }
+    [523, 659, 784].forEach((f) => tone(f, 0.9, "triangle", 0.03, 1.06));
+    return 2;
+  }
+
+  return { init, jump, blip, select, step, sigh, curtain, door, key, playMusic, stopMusic,
+    rain, twinkle, shootingStar, reveal, pop, cheer, fanfare };
 })();
