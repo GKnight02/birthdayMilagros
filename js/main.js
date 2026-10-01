@@ -212,7 +212,7 @@ function drawTree() {
 
 function drawOutdoor() {
   const rise = 1 - Math.exp(-sceneT / 7);      // el sol va saliendo
-  const sunY = Math.round(118 - rise * 30);
+  const sunY = Math.round(100 - rise * 34);
   ctx.drawImage(morningSky, 0, 0);
   // El cielo se calienta conforme sale el sol
   ctx.globalAlpha = 0.25 * rise;
@@ -508,8 +508,9 @@ const ACTOR_PAD = 2;
 function drawLit(img, x, y, flip = false, parts = [[0, img.height, 0]], floorY = null) {
   x = Math.round(x); y = Math.round(y);
   const w = img.width * SCALE, h = img.height * SCALE + ACTOR_PAD * 2;
-  actorBuf.width = w; actorBuf.height = h;
   const g = actorBuf.getContext("2d");
+  if (actorBuf.width !== w || actorBuf.height !== h) { actorBuf.width = w; actorBuf.height = h; }
+  else g.clearRect(0, 0, w, h);
   g.imageSmoothingEnabled = false;
   for (const [sy, sh, dy] of parts) g.drawImage(img, 0, sy, img.width, sh, 0, ACTOR_PAD + sy * SCALE + dy, w, sh * SCALE);
   if (ambient.tint && ambient.tintA > 0) {
@@ -528,15 +529,17 @@ function drawLit(img, x, y, flip = false, parts = [[0, img.height, 0]], floorY =
     ctx.drawImage(src, 0, sy, w, sh, 0, y - ACTOR_PAD + sy, w, sh);
     ctx.restore();
   };
-  // Reflejo en el piso: más claro conforme se aleja de los pies
+  // Reflejo en el piso: solo se alcanzan a ver los pies y se desvanece
   if (floorY !== null && ambient.reflect > 0) {
     const feet = ACTOR_PAD + img.height * SCALE;
-    put(actorBuf, 0, ambient.reflect * 0.45, 0, feet, true);
-    put(actorBuf, 0, ambient.reflect * 0.55, feet - 12, 12, true);
+    put(actorBuf, 0, ambient.reflect * 0.5, feet - 18, 18, true);
+    put(actorBuf, 0, ambient.reflect * 0.5, feet - 8, 8, true);
   }
   if (ambient.rim && ambient.rimA > 0) {
-    rimBuf.width = w; rimBuf.height = h;
     const r = rimBuf.getContext("2d");
+    if (rimBuf.width !== w || rimBuf.height !== h) { rimBuf.width = w; rimBuf.height = h; }
+    else r.clearRect(0, 0, w, h);
+    r.globalCompositeOperation = "source-over";
     r.drawImage(actorBuf, 0, 0);
     r.globalCompositeOperation = "source-in";
     r.fillStyle = ambient.rim;
@@ -902,7 +905,7 @@ const hallwayBg = (() => {
   r("#ff8fb5", 193, 50, 2, 2);
   r("#e2d4b4", 185, 68, 30, 1);
   // Reloj redondo (las manecillas se mueven)
-  paintClockFace(g, 158, 30);
+  paintClockFace(g, 162, 56);
   // Garrafón de agua
   paintCooler(r, 228, BACK.y1);
   // Apagador junto a la puerta
@@ -929,7 +932,7 @@ function drawHallwayBack() {
   coolerBubbles(232, 80, 94, 0.6);
   flutterNote(104, 52, 12, 10, "#ff8fb5", 1.2);
   flutterNote(112, 65, 14, 10, "#ffffff", 3.4);
-  clockHands(158, 30, 4);
+  clockHands(162, 56, 4);
 }
 // Conos de luz de las lámparas (una parpadea de vez en cuando) y polvito
 function drawHallwayLight() {
@@ -1555,9 +1558,9 @@ const hallDoorBg = (() => {
     for (let y = GROUND_Y; y < H; y++) r("#e2e2dc", W / 2 + (xb - W / 2) * (1 + (y - GROUND_Y) / 30), y, 1, 1);
   paintLightPools(r, g, [35, 105, 245], GROUND_Y);
 
-  // Pizarrón de avisos con notitas y un reloj encima
+  // Pizarrón de avisos con notitas y un reloj a un lado
   paintNoticeBoard(r, 52, 52);
-  paintClockFace(g, 81, 36);
+  paintClockFace(g, 125, 60);
   // Cuadro con un corazón
   r("#140c0c", 236, 46, 30, 26);
   r("#ffffff", 238, 48, 26, 22);
@@ -1592,7 +1595,7 @@ function drawDoorProps() {
   coolerBubbles(288, GROUND_Y - 49, GROUND_Y - 35, 1.7);
   flutterNote(74, 60, 12, 10, "#ff8fb5", 0.4);
   flutterNote(82, 73, 14, 10, "#ffffff", 2.9);
-  clockHands(81, 36, 4);
+  clockHands(125, 60, 4);
   drawMotes(12, 20, 30, 280, 110, 4);
 }
 
