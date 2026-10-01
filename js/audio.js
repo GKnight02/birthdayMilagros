@@ -375,6 +375,32 @@ const Sound = (() => {
     return buf;
   }
 
+  // Murmullo detrás de la puerta: sílabas graves y apagadas, como voces bajitas
+  function murmur() {
+    if (!ctx) return;
+    const lp = ctx.createBiquadFilter();
+    lp.type = "lowpass";
+    lp.frequency.value = 700;
+    lp.connect(ctx.destination);
+    const n = 3 + Math.floor(Math.random() * 3);
+    let s = ctx.currentTime;
+    for (let i = 0; i < n; i++) {
+      s += 0.08 + Math.random() * 0.05;
+      const f = 170 + Math.random() * 160;
+      const osc = ctx.createOscillator();
+      const g = ctx.createGain();
+      osc.type = "sawtooth";
+      osc.frequency.setValueAtTime(f, s);
+      osc.frequency.linearRampToValueAtTime(f * (0.85 + Math.random() * 0.3), s + 0.1);
+      g.gain.setValueAtTime(0.0001, s);
+      g.gain.linearRampToValueAtTime(0.018, s + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001, s + 0.11);
+      osc.connect(g).connect(lp);
+      osc.start(s);
+      osc.stop(s + 0.12);
+    }
+  }
+
   // Revelación mágica al abrir la puerta: arpegio que sube y brilla
   function reveal() {
     [523, 659, 784, 1047, 1319, 1568, 2093].forEach((f, i) => {
@@ -448,5 +474,5 @@ const Sound = (() => {
   }
 
   return { init, jump, blip, select, step, sigh, curtain, door, key, playMusic, stopMusic,
-    rain, twinkle, shootingStar, reveal, pop, cheer, fanfare };
+    rain, twinkle, shootingStar, reveal, pop, cheer, fanfare, murmur };
 })();

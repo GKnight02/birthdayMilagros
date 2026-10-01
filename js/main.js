@@ -763,89 +763,59 @@ async function benchSigh() {
 // =====================================================
 //  ESCENA FINAL: LA PUERTA Y LA FIESTA SORPRESA
 // =====================================================
-const HOUSE_DOOR = { x: 146, w: 36, top: GROUND_Y - 72 };
-const DOOR_BOTTOM = GROUND_Y - 4;                       // la puerta empieza arriba del escalón
-const HOUSE_WINDOWS = [{ x: 56, y: 62, w: 44, h: 36 }, { x: 228, y: 62, w: 44, h: 36 }];
-const PORCH_LAMP = { x: 128, y: 82 };
+const HALL_DOOR = { x: 146, w: 36, top: GROUND_Y - 72 };
 
-// Fachada de la casita al atardecer
-const houseBg = (() => {
+// Pasillo de la oficina con la puerta blanca de la sala de juntas
+const hallDoorBg = (() => {
   const c = document.createElement("canvas");
   c.width = W; c.height = H;
   const g = c.getContext("2d");
   const r = (col, x, y, w, h) => { g.fillStyle = col; g.fillRect(Math.round(x), Math.round(y), Math.round(w), Math.round(h)); };
 
-  const sky = ["#2b1d4e", "#3d2a6b", "#5a3a8a", "#7d4ea3", "#a864b5", "#d47fb8", "#f2a0b8"];
-  const band = GROUND_Y / sky.length;
-  sky.forEach((col, i) => r(col, 0, Math.floor(i * band), W, Math.ceil(band)));
-  g.fillStyle = "#fff";
-  for (let i = 0; i < 18; i++) g.fillRect((i * 97) % W, (i * 53) % 30, 1, 1);
+  // Techo con lámparas, pared crema y zócalo
+  r("#fbf6ea", 0, 0, W, 16);
+  r("#e9dbbd", 0, 16, W, 2);
+  for (let x = 20; x < W; x += 70) { r("#ffffff", x, 18, 30, 3); r("#fff4c4", x + 2, 21, 26, 1); }
+  r(CREAM, 0, 18, W, GROUND_Y - 18);
+  r("#e9dbbd", 0, GROUND_Y - 5, W, 5);
+  // Piso blanco de mosaico
+  r("#f7f7f4", 0, GROUND_Y, W, H - GROUND_Y);
+  [GROUND_Y + 7, GROUND_Y + 16, GROUND_Y + 28].forEach((y) => r("#e2e2dc", 0, y, W, 1));
+  for (let xb = -60; xb <= W + 60; xb += 24)
+    for (let y = GROUND_Y; y < H; y++) r("#e2e2dc", W / 2 + (xb - W / 2) * (1 + (y - GROUND_Y) / 30), y, 1, 1);
 
-  // Arbustos a los lados
-  for (const [cx, cy, rad] of [[14, 132, 18], [36, 140, 12], [306, 132, 18], [286, 140, 12]]) {
-    for (let dy = -rad; dy <= rad; dy++) {
-      const half = Math.floor(Math.sqrt(rad * rad - dy * dy));
-      r("#1e5a3a", cx - half - 1, cy + dy, half * 2 + 2, 1);
-      r(dy < -rad / 3 ? "#4caf50" : "#3a8f48", cx - half, cy + dy, half * 2, 1);
-    }
+  // Pizarrón de avisos con notitas
+  r("#140c0c", 52, 52, 58, 36);
+  r("#c9955b", 54, 54, 54, 32);
+  r("#ffe066", 58, 58, 12, 10); r("#ff8fb5", 74, 60, 12, 10);
+  r("#8ce99a", 90, 57, 12, 10); r("#7ec8e3", 64, 72, 12, 9); r("#ffffff", 82, 73, 14, 10);
+  // Cuadro con un corazón
+  r("#140c0c", 236, 46, 30, 26);
+  r("#ffffff", 238, 48, 26, 22);
+  [[244, 52, 4, 2], [252, 52, 4, 2], [243, 54, 14, 4], [245, 58, 10, 2], [247, 60, 6, 2], [249, 62, 2, 2]]
+    .forEach(([x, y, w, h]) => r("#ff4d6d", x, y, w, h));
+  // Garrafón de agua
+  r("#140c0c", 284, GROUND_Y - 34, 16, 34);
+  r("#ffffff", 285, GROUND_Y - 33, 14, 32);
+  r("#140c0c", 285, GROUND_Y - 53, 14, 19);
+  r("#9fd4ff", 286, GROUND_Y - 52, 12, 17);
+  r("#dff3ff", 287, GROUND_Y - 50, 2, 12);
+  r("#4a78c2", 287, GROUND_Y - 25, 3, 3);
+  // Maceta con planta junto a la puerta
+  r("#140c0c", 199, GROUND_Y - 15, 14, 15);
+  r("#e8e8e4", 200, GROUND_Y - 14, 12, 14);
+  for (const [x, y, w, h] of [[201, GROUND_Y - 26, 4, 12], [205, GROUND_Y - 32, 3, 18], [208, GROUND_Y - 27, 4, 13]]) {
+    r("#1e5a3a", x - 1, y - 1, w + 2, h + 2);
+    r("#3a8f48", x, y, w, h);
   }
 
-  // Techo de tejas
-  for (let y = 14; y < 36; y++) {
-    const left = 46 - (y - 14) * 0.75;
-    r(y % 4 === 0 ? "#6e2a3a" : "#8e3a4c", left, y, W - left * 2, 1);
-  }
-  r("#140c0c", 28, 13, W - 56, 1);
-  r("#4a1828", 28, 36, W - 56, 3);
-
-  // Pared con tablitas
-  r("#f3d9c0", 40, 39, W - 80, GROUND_Y - 39);
-  for (let y = 45; y < GROUND_Y; y += 6) r("#e6c6a8", 40, y, W - 80, 1);
-  r("#140c0c", 39, 39, 1, GROUND_Y - 39);
-  r("#140c0c", W - 40, 39, 1, GROUND_Y - 39);
-
-  // Ventanas con luz cálida y cortinas (las siluetas se dibujan aparte)
-  for (const w of HOUSE_WINDOWS) {
-    r("#140c0c", w.x - 3, w.y - 3, w.w + 6, w.h + 6);
-    r("#ffffff", w.x - 2, w.y - 2, w.w + 4, w.h + 4);
-    r("#ffe3a0", w.x, w.y, w.w, w.h);
-    r("#ffd27a", w.x, w.y + w.h / 2, w.w, w.h / 2);
-    r("#ff8fb5", w.x, w.y, 6, w.h); r("#ff8fb5", w.x + w.w - 6, w.y, 6, w.h);
-    r("#e8668f", w.x + 5, w.y, 1, w.h); r("#e8668f", w.x + w.w - 6, w.y, 1, w.h);
-    r("#ffffff", w.x - 4, w.y + w.h + 2, w.w + 8, 3);                  // repisa
-  }
-
-  // Marco de la puerta y ventanita de arriba
-  const d = HOUSE_DOOR;
-  r("#140c0c", d.x - 5, d.top - 13, d.w + 10, DOOR_BOTTOM - d.top + 13);
-  r("#fff8ee", d.x - 4, d.top - 12, d.w + 8, DOOR_BOTTOM - d.top + 12);
-  r("#140c0c", d.x - 1, d.top - 10, d.w + 2, 9);
-  r("#ffd27a", d.x, d.top - 9, d.w, 7);
-  r("#140c0c", d.x + d.w / 2, d.top - 9, 1, 7);
-  // Escalón y tapete
-  r("#140c0c", d.x - 10, DOOR_BOTTOM - 1, d.w + 20, 6);
-  r("#c8b4a0", d.x - 9, DOOR_BOTTOM, d.w + 18, 4);
-  // Macetas con flores
-  for (const px of [98, 196]) {
-    r("#140c0c", px - 1, GROUND_Y - 13, 14, 13);
-    r("#c0603a", px, GROUND_Y - 12, 12, 12);
-    r("#3a8f48", px + 1, GROUND_Y - 20, 10, 8);
-    r("#ff4d6d", px + 2, GROUND_Y - 22, 3, 3); r("#ffe066", px + 7, GROUND_Y - 21, 3, 3);
-  }
-  // Farolito del pórtico
-  const l = PORCH_LAMP;
-  r("#140c0c", l.x - 3, l.y - 2, 8, 12);
-  r("#fff1b8", l.x - 2, l.y, 6, 8);
-  r("#140c0c", l.x - 4, l.y - 3, 10, 2);
-
-  // Pasto, tierra y caminito
-  r("#4caf50", 0, GROUND_Y, W, 4);
-  r("#2e7d32", 0, GROUND_Y + 4, W, 2);
-  r("#8d5a3b", 0, GROUND_Y + 6, W, H - GROUND_Y - 6);
-  g.fillStyle = "#6d4028";
-  for (let y = GROUND_Y + 10; y < H; y += 8)
-    for (let x = (y / 8) % 2 ? 0 : 8; x < W; x += 16) g.fillRect(x, y, 6, 3);
-  for (let y = GROUND_Y + 4; y < H; y += 7) r("#b8a090", d.x + 4 + ((y / 7) % 2) * 6, y, 22, 4);
+  // Marco de la puerta y letrero
+  const d = HALL_DOOR;
+  r("#140c0c", d.x - 4, d.top - 4, d.w + 8, GROUND_Y - d.top + 4);
+  r("#d8d8d4", d.x - 3, d.top - 3, d.w + 6, GROUND_Y - d.top + 3);
+  r("#140c0c", d.x - 1, d.top - 1, d.w + 2, GROUND_Y - d.top + 1);
+  r("#140c0c", d.x + 1, d.top - 18, d.w - 2, 12);
+  r("#4a5a7a", d.x + 2, d.top - 17, d.w - 4, 10);
   return c;
 })();
 
@@ -862,23 +832,48 @@ const partyBg = (() => {
   const g = c.getContext("2d");
   const r = (col, x, y, w, h) => { g.fillStyle = col; g.fillRect(Math.round(x), Math.round(y), Math.round(w), Math.round(h)); };
 
-  r("#f9d5e5", 0, 0, W, FLOOR_Y);
-  for (let x = 0; x < W; x += 16) r("#fbe3ee", x, 0, 8, FLOOR_Y);
-  r("#ffffff", 0, 98, W, 2);
-  r("#eab3c9", 0, 100, W, FLOOR_Y - 100);
-  r("#d998b2", 0, FLOOR_Y - 2, W, 2);
-  // Piso de madera
-  r("#c98f5e", 0, FLOOR_Y, W, H - FLOOR_Y);
-  for (let y = FLOOR_Y + 6, k = 0; y < H; y += 7, k++) {
-    r("#b07a4f", 0, y, W, 1);
-    for (let x = (k % 3) * 23; x < W; x += 70) r("#b07a4f", x, y - 6, 1, 6);
-  }
-  // Puerta por donde entra ella (abierta, con la luz de afuera)
+  // Techo y pared crema de la oficina
+  r("#fbf6ea", 0, 0, W, 6);
+  r(CREAM, 0, 6, W, FLOOR_Y - 6);
+  r("#e9dbbd", 0, 6, W, 1);
+  r("#e9dbbd", 0, FLOOR_Y - 5, W, 5);
+
+  // Ventanal con la ciudad (a la derecha)
+  r("#140c0c", 236, 22, 72, 56);
+  r("#bfe3f2", 237, 23, 70, 54);
+  [[240, 50, 10, 27], [252, 40, 12, 37], [266, 56, 9, 21], [277, 34, 13, 43], [292, 48, 12, 29]]
+    .forEach(([x, y, w, h]) => { r("#9fb8c8", x, y, w, h); for (let wy = y + 3; wy < y + h - 2; wy += 5) r("#dff3ff", x + 2, wy, w - 4, 1); });
+  g.globalAlpha = 0.5;
+  r("#ffffff", 242, 26, 1, 12); r("#ffffff", 245, 30, 1, 6);
+  g.globalAlpha = 1;
+  r(ALU, 236, 22, 72, 2); r(ALU, 236, 76, 72, 2);
+  [236, 260, 284, 306].forEach((x) => r(ALU_DARK, x, 22, 2, 56));
+
+  // Pizarrón blanco con dibujitos y un reloj
+  r("#140c0c", 50, 58, 50, 36);
+  r(ALU, 51, 59, 48, 34);
+  r("#ffffff", 53, 61, 44, 30);
+  [[59, 66, 3, 2], [64, 66, 3, 2], [58, 68, 10, 3], [60, 71, 6, 2], [62, 73, 2, 2]]
+    .forEach(([x, y, w, h]) => r("#ff4d6d", x, y, w, h));
+  for (let k = 0; k < 4; k++) r("#4a90c8", 72, 66 + k * 5, 18 - (k % 2) * 6, 1);
+  r(ALU_DARK, 60, 92, 30, 2);
+  r("#140c0c", 68, 38, 14, 14);
+  r("#ffffff", 69, 39, 12, 12);
+  r("#140c0c", 74, 41, 2, 5); r("#140c0c", 74, 45, 4, 2);
+
+  // Piso blanco de mosaico
+  r("#f7f7f4", 0, FLOOR_Y, W, H - FLOOR_Y);
+  [FLOOR_Y + 9, FLOOR_Y + 22, FLOOR_Y + 40].forEach((y) => r("#e2e2dc", 0, y, W, 1));
+  for (let xb = -60; xb <= W + 60; xb += 24)
+    for (let y = FLOOR_Y; y < H; y++) r("#e2e2dc", W / 2 + (xb - W / 2) * (1 + (y - FLOOR_Y) / 50), y, 1, 1);
+
+  // Puerta blanca por donde entra ella (abierta, se ve el pasillo)
   r("#140c0c", 6, 44, 36, FLOOR_Y - 44);
-  r("#fff8ee", 7, 45, 34, FLOOR_Y - 45);
-  r("#fff4c8", 10, 48, 28, FLOOR_Y - 48);
+  r("#d8d8d4", 7, 45, 34, FLOOR_Y - 45);
+  r("#fff4dc", 10, 48, 28, FLOOR_Y - 48);
   r("#140c0c", 42, 46, 6, FLOOR_Y - 46);
-  r("#b0603a", 43, 47, 4, FLOOR_Y - 48);
+  r("#f4f4f2", 43, 47, 4, FLOOR_Y - 48);
+
   // Banderines de colores colgando de un cordón
   for (let x = 0; x < W; x++) {
     const y = 9 + Math.round(Math.sin(((x % 80) / 80) * Math.PI) * 8);
@@ -1003,7 +998,7 @@ function drawGuest(f) {
 const party = {};
 function resetParty() {
   Object.assign(party, {
-    door: 0, rays: 0, flash: 0, duck: 0, mode: "calm", shake: 0, dim: 0,
+    door: 0, rays: 0, flash: 0, murmur: false, bump: 0, mode: "calm", shake: 0, dim: 0,
     bigText: null, crown: false, highlight: false, joyTears: false, timer: 0,
   });
   crowd = [];
@@ -1028,32 +1023,17 @@ function floatText(text, x, y, color = "#ffe066", life = 1.4) {
 }
 
 function drawDoorScene() {
-  ctx.drawImage(houseBg, 0, 0);
+  ctx.drawImage(hallDoorBg, 0, 0);
+  const d = HALL_DOOR, h = GROUND_Y - d.top;
 
-  // Siluetas que se asoman por las ventanas... y se agachan para no ser vistas
-  HOUSE_WINDOWS.forEach((w, wi) => {
-    ctx.save();
-    ctx.beginPath(); ctx.rect(w.x + 6, w.y, w.w - 12, w.h); ctx.clip();
-    for (let k = 0; k < 2; k++) {
-      const hx = w.x + 15 + k * 14;
-      const hy = Math.round(w.y + w.h - 9 + party.duck * 22 + Math.sin(time * 2.5 + wi * 2 + k * 1.3) * 1.5);
-      ctx.globalAlpha = 0.75;
-      pixelCircle(hx, hy, 6, "#6a3f5a");
-      rect("#6a3f5a", hx - 9, hy + 5, 18, 12);
-      ctx.globalAlpha = 1;
-    }
-    ctx.restore();
-    rect("#ffffff", w.x + w.w / 2 - 1, w.y, 2, w.h);
-    rect("#ffffff", w.x, w.y + w.h / 2 - 1, w.w, 2);
-  });
-
-  // Luz del farolito
-  ctx.globalAlpha = 0.12 + Math.sin(time * 3) * 0.02;
-  pixelCircle(PORCH_LAMP.x + 1, PORCH_LAMP.y + 4, 14, "#ffd27a");
-  ctx.globalAlpha = 1;
+  // Letrero de la sala
+  ctx.font = "8px 'Press Start 2P', monospace";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillStyle = "#ffffff";
+  ctx.fillText("SALA", d.x + d.w / 2, d.top - 12);
 
   // Detrás de la puerta: pura luz dorada
-  const d = HOUSE_DOOR, h = DOOR_BOTTOM - d.top;
   const glow = Math.min(1, party.door * 0.6 + party.rays * 0.6);
   if (party.door > 0) {
     rect("#fff4c8", d.x, d.top, d.w, h);
@@ -1078,23 +1058,36 @@ function drawDoorScene() {
     pixelCircle(cx, cy, 24, "#ffffff");
     ctx.globalAlpha = 1;
   }
-  // La hoja de la puerta gira hacia adentro sobre la bisagra derecha
+
+  // La hoja blanca gira hacia adentro sobre la bisagra derecha
+  // (cuando alguien adentro choca con ella, tiembla un poquito)
+  const bump = party.bump > 0 ? Math.round(Math.sin(party.bump * 60)) : 0;
   const pw = Math.max(3, Math.round(d.w * (1 - 0.88 * party.door)));
-  const px = d.x + d.w - pw;
+  const px = d.x + d.w - pw + bump;
   rect("#140c0c", px - 1, d.top, pw + 1, h);
-  rect("#b0603a", px, d.top + 1, pw - 1, h - 1);
+  rect("#f4f4f2", px, d.top + 1, pw - 1, h - 1);
   if (pw > 14) {
-    rect("#8e4a2a", px + 4, d.top + 6, pw - 9, 24);
-    rect("#8e4a2a", px + 4, d.top + 36, pw - 9, 24);
-    rect("#c07048", px + 5, d.top + 7, pw - 11, 1);
-    rect("#c07048", px + 5, d.top + 37, pw - 11, 1);
-    rect("#140c0c", px + 1, d.top + 36, 4, 4);
-    rect("#ffd166", px + 2, d.top + 37, 2, 2);                                  // perilla
-    rect("#ff4d6d", px + pw / 2 - 4, d.top + 1, 8, 2);                            // moñito
+    rect("#e2e2de", px + 4, d.top + 6, pw - 9, 26);
+    rect("#e2e2de", px + 4, d.top + 38, pw - 9, 26);
+    rect("#ffffff", px + 5, d.top + 7, pw - 11, 1);
+    rect("#ffffff", px + 5, d.top + 39, pw - 11, 1);
+    rect("#140c0c", px + 1, GROUND_Y - 22, 3, 6);                      // manija
+    rect("#140c0c", px + 1, GROUND_Y - 21, 8, 3);
+    rect(ALU, px + 2, GROUND_Y - 20, 6, 1);
   }
   ctx.globalAlpha = party.door * 0.4;
   rect("#140c0c", px, d.top + 1, pw - 1, h - 1);
   ctx.globalAlpha = 1;
+
+  // Luz por debajo de la puerta, con sombras de pies que pasan
+  if (party.door === 0) {
+    rect("#ffe9a0", d.x, GROUND_Y - 1, d.w, 1);
+    for (let k = 0; k < 2; k++) {
+      const fx = d.x + Math.round(((time * (14 + k * 9) + k * 17) % (d.w + 10)) - 5);
+      const fw = Math.min(5, d.x + d.w - fx);
+      if (fw > 0) rect("#7a6a5a", Math.max(d.x, fx), GROUND_Y - 1, fw, 1);
+    }
+  }
 
   drawGirl();
 }
@@ -1172,10 +1165,25 @@ function drawPartyOverlay() {
   }
 }
 
+const MURMURS = ["psst", "shh", "jiji", "¿ya?", "...", "¡ahí viene!", "bla bla", "¡shhh!"];
 function updateDoorScene(dt) {
+  const d = HALL_DOOR;
+  party.bump = Math.max(0, party.bump - dt);
+  // Murmullos y risitas que se escapan de la sala
+  if (party.murmur && (party.timer -= dt) <= 0) {
+    party.timer = 0.55 + Math.random() * 0.6;
+    const text = MURMURS[(Math.random() * MURMURS.length) | 0];
+    const side = Math.random() < 0.5 ? -1 : 1;
+    particles.push({
+      type: "text", text, color: "#9a7fa8",
+      x: d.x + d.w / 2 + side * (12 + Math.random() * 26), y: d.top + 2 + Math.random() * 24,
+      vx: side * 6, vy: -8, life: 1.5,
+    });
+    Sound.murmur();
+    if (Math.random() < 0.2) party.bump = 0.15;
+  }
   // Al abrirse la puerta se escapan brillitos y confeti
   if (party.door > 0.15 && Math.random() < dt * 30) {
-    const d = HOUSE_DOOR;
     const x = d.x + 4 + Math.random() * (d.w - 8), y = d.top + 6 + Math.random() * 56;
     if (Math.random() < 0.5) particles.push({ type: "spark", x, y, vx: (Math.random() - 0.5) * 60, vy: -10 - Math.random() * 30, life: 0.8 });
     else particles.push({
@@ -1836,17 +1844,20 @@ async function chapterParty() {
     girl.y = GIRL_TOP;
   });
 
-  // Llega hasta la puerta; adentro alguien se asoma por la ventana... y se esconde
-  await walkTo(HOUSE_DOOR.x + 5 - 35);
-  floatText("¡Shhh!", 78, 60, "#ffffff", 1.6);
-  tween(party, "duck", 1, 0.5);
-  await wait(700);
-  await say(`Al final del día, algo llevó a ${CONFIG.name} hasta esta puerta...`);
+  // Camina por el pasillo hasta la puerta de la sala; adentro murmuran
+  party.murmur = true;
+  await walkTo(HALL_DOOR.x + 5 - 35);
+  await wait(400);
+  await say(`De vuelta en la oficina, algo llevó a ${CONFIG.name} hasta esta puerta...`);
+  await say('Del otro lado se escuchaban murmullos, risitas y uno que otro "¡shhh!"...');
   floatText("?", girl.x + 24, girl.y - 4, "#ffffff", 1.8);
   await wait(500);
   await say(`¿Y ahora, ${CONFIG.name}... por qué sientes que hoy es un día especial?`);
 
-  // Silencio, estira la mano y abre: sale la luz
+  // Un último "¡shhh!", silencio total, estira la mano y abre: sale la luz
+  party.murmur = false;
+  floatText("¡SHHH!", HALL_DOOR.x + HALL_DOOR.w / 2, HALL_DOOR.top + 20, "#9a7fa8", 1.2);
+  Sound.murmur();
   Sound.stopMusic(0.8);
   await wait(700);
   girl.reach = true;
