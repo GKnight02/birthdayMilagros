@@ -3182,6 +3182,31 @@ window.addEventListener("keydown", (e) => {
   });
   $("game").appendChild(nav);
 
+  // Botón de ojo: oculta/muestra el paginado (para grabar video sin que se vea).
+  // Oculto, el ojo también queda transparente; reaparece al pasar el mouse. Atajo: tecla H.
+  const eye = document.createElement("button");
+  eye.style.cssText =
+    "position:absolute;top:1%;left:1%;z-index:11;font:1.6cqw monospace;line-height:1;padding:0.4cqw 0.7cqw;" +
+    "cursor:pointer;border:0.3cqw solid #000;color:#fff;background:#1a1a2e;transition:opacity .2s;";
+  let navHidden = false;
+  try { navHidden = localStorage.getItem("navHidden") === "1"; } catch {}
+  const applyNav = () => {
+    nav.style.opacity = navHidden ? "0" : "1";
+    nav.style.pointerEvents = navHidden ? "none" : "auto";
+    eye.textContent = navHidden ? "◡" : "👁";
+    eye.title = navHidden ? "Mostrar escenas (H)" : "Ocultar escenas (H)";
+    eye.style.opacity = navHidden ? "0" : "1";
+    try { localStorage.setItem("navHidden", navHidden ? "1" : "0"); } catch {}
+  };
+  const toggleNav = () => { navHidden = !navHidden; applyNav(); };
+  eye.addEventListener("mouseenter", () => { eye.style.opacity = "1"; });
+  eye.addEventListener("mouseleave", () => { if (navHidden) eye.style.opacity = "0"; });
+  eye.addEventListener("pointerdown", (e) => e.stopPropagation());
+  eye.addEventListener("click", (e) => { e.stopPropagation(); toggleNav(); });
+  window.addEventListener("keydown", (e) => { if (e.key === "h" || e.key === "H") toggleNav(); });
+  applyNav();
+  $("game").appendChild(eye);
+
   // Si la dirección trae #escena=N, se salta el título y empieza ahí
   if (current >= 1 && current <= CHAPTERS.length) {
     titleScreen.classList.add("hidden");
