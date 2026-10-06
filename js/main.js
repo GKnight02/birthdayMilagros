@@ -2770,9 +2770,11 @@ async function changeScene(setup) {
 
 // La historia está dividida en capítulos para poder empezar desde cualquiera
 async function chapterIntro() {
-  Sound.playMusic("morning");
+  // El vals de "érase una vez" sigue sonando hasta que se abre el telón
+  Sound.playMusic("storytime");
   await wait(300);
   await openCurtain();
+  Sound.playMusic("morning");
   await wait(300);
 
   await say(`Érase una vez una chica llamada ${CONFIG.name}...`);
@@ -3213,6 +3215,16 @@ window.addEventListener("keydown", (e) => {
     story(current - 1);
   }
 })();
+
+// Música de la pantalla de título, en bucle hasta que empieza la primera escena.
+// El navegador solo deja sonar audio tras una interacción: se intenta de una vez y,
+// si está bloqueado, arranca con el primer clic o tecla.
+if (state === "title") {
+  Sound.playMusic("storytime");
+  Sound.init();
+}
+window.addEventListener("pointerdown", () => Sound.init());
+window.addEventListener("keydown", () => Sound.init());
 
 // =====================================================
 //  BUCLE PRINCIPAL

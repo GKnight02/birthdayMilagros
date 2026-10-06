@@ -74,6 +74,34 @@ const Sound = (() => {
   //   "C5" nota · "C5:2" nota de 2 pasos · "A3+C4+E4" acorde · "." silencio · "x" golpe (batería)
   //   "|" solo separa compases para leerlo mejor.
   const TRACKS = {
+    // Pantalla de título: vals alegre de cuento, "érase una vez..." (3/4, 6 pasos por compás)
+    storytime: {
+      bpm: 132,
+      voices: [
+        { type: "triangle", vol: 0.03, gate: 0.75, seq:
+          "G4 C5 E5 G5:3 . . | A5 G5 E5 C5:3 . . | F4 A4 C5 F5:3 . . | A5 G5 F5 E5:3 . . | " +
+          "D5 G5 B5 D6:3 . . | C6 B5 A5 G5:3 . . | E5 G5 C6 E6:2 . D6 | D6 C6 B5 G5:3 . . | " +
+          "A4 C5 E5 A5:3 . . | G5 E5 C5 A4:3 . . | F5 A5 C6 A5:3 . . | G5 E5 C5 G4:3 . . | " +
+          "A4 C5 F5 A5:2 . G5 | B4 D5 G5 B5:2 . A5 | G5 C6 E6 D6 C6 B5 | D6:2 . B5 . G5 ." },
+        { type: "sine", vol: 0.012, gate: 0.5, seq:
+          ". . . G6 . . | . . . C6 . . | . . . F6 . . | . . . E6 . . | " +
+          ". . . D7 . . | . . . G6 . . | . . . E7 . . | . . . G6 . . | " +
+          ". . . A6 . . | . . . A5 . . | . . . A6 . . | . . . G5 . . | " +
+          ". . . A6 . . | . . . B6 . . | . . . . . . | . . . . . ." },
+        { type: "triangle", vol: 0.014, gate: 0.45, seq:
+          ". . C4+E4+G4 . C4+E4+G4 . | . . C4+E4+G4 . C4+E4+G4 . | . . C4+F4+A4 . C4+F4+A4 . | . . C4+F4+A4 . C4+F4+A4 . | " +
+          ". . B3+D4+G4 . B3+D4+G4 . | . . B3+D4+G4 . B3+D4+G4 . | . . C4+E4+G4 . C4+E4+G4 . | . . B3+D4+F4 . B3+D4+F4 . | " +
+          ". . C4+E4+A4 . C4+E4+A4 . | . . C4+E4+A4 . C4+E4+A4 . | . . C4+F4+A4 . C4+F4+A4 . | . . C4+E4+G4 . C4+E4+G4 . | " +
+          ". . C4+F4+A4 . C4+F4+A4 . | . . B3+D4+G4 . B3+D4+G4 . | . . C4+E4+G4 . C4+E4+G4 . | . . B3+D4+F4 . B3+D4+F4 ." },
+        { type: "triangle", vol: 0.045, gate: 0.6, seq:
+          "C3:2 . . . G2 . | C3:2 . . . . . | F2:2 . . . C3 . | F2:2 . . . . . | " +
+          "G2:2 . . . D3 . | G2:2 . . . . . | C3:2 . . . G2 . | G2:2 . . . . . | " +
+          "A2:2 . . . E3 . | A2:2 . . . . . | F2:2 . . . . . | C3:2 . . . . . | " +
+          "F2:2 . . . . . | G2:2 . . . . . | C3:2 . . . E3 . | G2:2 . . . B2 ." },
+        { type: "kick", vol: 0.05, seq: "x . . . . ." },
+        { type: "hat", vol: 0.012, seq: ". . x . x ." },
+      ],
+    },
     // Inicio: mañana soleada, alegre y tranquila, con pajaritos
     morning: {
       bpm: 96,
